@@ -25,7 +25,7 @@ def randomly_wired_edges(npts: int, nedges: int) -> list[set[int]]:
     G : list of sets of integers
         A list of length npts with a sets of size nedges edges per node.
     """    
-    if (nedges <= npts):
+    if (nedges >= npts):
         raise RuntimeError('Must have more points than edges per point')
 
     edges = [None] * npts
@@ -81,7 +81,8 @@ class VamanaIndex():
         self.edges = []
         self.vectors = None
         self.keys = []
-              
+        self.key_index = {}
+
     def build(self, data: Sequence[ArrayLike], keys: Optional[Sequence[Any]] = None) -> None:
         """
         Build the index from vector data.
@@ -106,7 +107,7 @@ class VamanaIndex():
         # Copy keys and vectors
         self.npts = len(data)        
         self.keys = list(keys) if keys else np.arange(self.npts)
-        self.key_index = { k:i for i,k in enumerate(keys) }
+        self.key_index = { k:i for i,k in enumerate(self.keys) }
         self.vectors = np.array(data)
 
         # Build graph
@@ -132,7 +133,7 @@ class VamanaIndex():
                 if len(self.edges[nbr]) < self.R:
                     self.edges[nbr].add(p)
                 else:
-                    self._robust_prune(nbr, self.edges[nbr] + {p,})
+                    self._robust_prune(nbr, self.edges[nbr].union([p]))
 
     def _greedy_search(self, x: ArrayLike, k: int = 1, start: Optional[int] = None, L: Optional[int] = None) -> tuple[list[int], set[int]]:
         """
@@ -174,7 +175,7 @@ class VamanaIndex():
         
         # Begin at start point
         search_list = VisitPriorityQueue(maxlen=L)
-        search_list.insert(distance(start), start) # push distance first to allow sorting
+        search_list.insert((distance(start), start)) # push distance first to allow sorting
         visited = set()
         # Expand until no unvisited candidate is left
         # (VisitPriorityQueue takes care of iterating over unvisited nodes in order of distance)
@@ -211,11 +212,11 @@ class VamanaIndex():
 
         # Add current neighbours of p to list of candidates
         visited.update(self.edges[p])
-        # Avoid self loops
-        visited.remove(p)
+        # Avoid self loops if any
+        visited.discard(p)
 
         # Precompute distances from p
-        dist_from_p = { v: self.dist_func(p, v) for v in visited }
+        dist_from_p = { v: self.dist_func(self.vectors[p], self.vectors[v]) for v in visited }
         # TODO: Since visited never grows, can optimize using array and setting inf distance to "remove".
 
         # Start without neighbours
@@ -230,7 +231,9 @@ class VamanaIndex():
             if len(out_edges) == self.R:
                 break
             # Remove from candidate list points that are too close            
-            visited = set( v for v in visited if dist_from_p[v] < alpha*self.dist_func(p_star, v) )
+            visited = set( v for v in visited if dist_from_p[v] < alpha*self.dist_func(self.vectors[p_star], self.vectors[v]) )
         
         # Update the out neighbours of p        
         self.edges[p] = out_edges
+
+
