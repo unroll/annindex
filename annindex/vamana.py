@@ -42,9 +42,9 @@ def randomly_wired_edges(npts: int, nedges: int) -> list[set[int]]:
     
     return edges
 
-class VanamaIndex():
+class VamanaIndex():
     """
-    Vanama nearest neighbour search index.
+    Vamana nearest neighbour search index, as described in Section 2 of the [DiskANN paper](https://papers.nips.cc/paper/9527-rand-nsg-fast-accurate-billion-point-nearest-neighbor-search-on-a-single-node.pdf).
 
     Parameters
     ----------
