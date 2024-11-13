@@ -68,7 +68,9 @@ class VisitPriorityQueue():
     def trim(self) -> None:
         """
         Trim queue to maximum length. Used with `insert(x, trim=False)`.
-        """        
+        """    
+        if self.maxlen == 0:
+            return    
         self._data = self._data[:self.maxlen]
         assert self._min_unvisited <= self.maxlen
 

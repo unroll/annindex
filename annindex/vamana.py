@@ -60,8 +60,8 @@ class VamanaIndex():
         Growth factor for steps towards goal. By default, 1.2.
     """            
     def __init__(self, d: int, dist_func: str = 'euclidean', R: int = 64, L: int = 100, alpha: float = 1.2) -> None:
-        if R > L:
-            raise ValueError(f'Cannot create index where R ({R}) is larger than L ({L})')
+        if R > L and L != 0:
+            raise ValueError(f'Cannot create index where R ({R}) is larger than non-zero L ({L})')
         if d <= 0:
             raise ValueError('Cannot create index with negative or zero d')
         if alpha < 1:
@@ -191,7 +191,7 @@ class VamanaIndex():
         # Normalize L and start, make sure everything is valid        
         if L is None:
             L = self.L
-        assert L >= k
+        assert L >= k or L == 0
         assert len(x) == self.d
         if start is None:
             start = self.entry_point
@@ -211,10 +211,12 @@ class VamanaIndex():
         for p in search_list.visit():            
             # Mark p as visited
             visited.add(p)
-            # Add all neighbours to candidate list
+            # Add all unvisited neighbours to candidate list
             # (VisitPriorityQueue takes care of truncating to L top neighbours)
             for nbr in self.edges[p]:
-                search_list.insert(distance(nbr), nbr)
+                if nbr not in visited: 
+                    search_list.insert(distance(nbr), nbr)
+            # TODO: checking if nbr is in visited list may not be worth it, since search_list eliminates duplicates
         # Return k nearest nodes and visited nodes
         return search_list.ksmallest(k), visited
 
