@@ -7,7 +7,7 @@ from .utils import VisitPriorityQueue
 
 
 
-def randomly_wired_edges(npts: int, nedges: int) -> NDArray[np.int32]:
+def randomly_wired_edges(npts: int, nedges: int) -> list[set[int]]:
     """
     Generate randomly wired outgoing edges for all nodes. 
     Avoids self-loops and double edges, but does not guarantee back-edges: 
@@ -22,22 +22,23 @@ def randomly_wired_edges(npts: int, nedges: int) -> NDArray[np.int32]:
 
     Returns
     -------
-    G : NDArray[np.int32]
-        An integer array of size (npts, nedges) with edges of each node.
+    G : list of sets of integers
+        A list of length npts with a sets of size nedges edges per node.
     """    
     if (nedges <= npts):
         raise RuntimeError('Must have more points than edges per point')
 
-    edges = np.zeros((npts, nedges), dtype=np.int32)    
+    edges = [None] * npts
     # Set random edges row by row
     for i in range(npts):
-        # To avoid self loop, generate nedges+1 neighbours, then replace i with the last neighbour if needed
+        # Generate nedges+1 neighbours without replacement
         nbrs = np.random.choice(npts, size=nedges+1, replace=False)
         for j in range(nedges):
+            # To avoid self loop, replace i with the last generated neighbour if needed
             if nbrs[j] == i:
-                nbrs[j] = nbrs[-1]
+                nbrs[j] = nbrs[-1] # guaranteed not be i since we sample without replacement
                 break
-        edges[i] = nbrs
+        edges[i] = set(nbrs[:-1])
     
     return edges
 
@@ -77,7 +78,7 @@ class VanamaIndex():
         self.dist_func = distance.dist_funcs[dist_func]
         
         self.npts = 0
-        self.edges = None
+        self.edges = []
         self.vectors = None
         self.keys = []
               
@@ -128,15 +129,10 @@ class VanamaIndex():
             self._robust_prune(p, visited)
             # Update p's neigbhbours to point back to p
             for nbr in self.edges[p]:
-                # Are there fewer than R neighbours?
-                empty = self.edges[nbr] < 0
-                # Either add p as neighbour or add and prune
-                if empty.max():
-                    self.edges[nbr,empty.argmax()] = p
+                if len(self.edges[nbr]) < self.R:
+                    self.edges[nbr].add(p)
                 else:
-                    candidates = set(self.edges[nbr])
-                    candidates.add(p)
-                    self._robust_prune(nbr, candidates)
+                    self._robust_prune(nbr, self.edges[nbr] + {p,})
 
     def _greedy_search(self, x: ArrayLike, k: int = 1, start: Optional[int] = None, L: Optional[int] = None) -> tuple[list[int], set[int]]:
         """
@@ -196,13 +192,15 @@ class VanamaIndex():
         """
         Use the visited path from the entry point during greedy search to prune out edges of a point. 
         Implements Algorithm 2 in the [paper](https://papers.nips.cc/paper/9527-rand-nsg-fast-accurate-billion-point-nearest-neighbor-search-on-a-single-node.pdf).
+        
+        Note `visited` is modified during the run.
 
         Parameters
         ----------
         p : int
             Index of point whose neighbours we are pruning.
         visited : set[int]
-            Candidates for edges of p (the set of points visited during `_greedy_search`).
+            Candidates for edges of p (the set of points visited during `_greedy_search`). Modified during operation.
         alpha : Optional[float], optional
             Distance growth factor. Omit to use `self.alpha`.
         """
@@ -235,28 +233,4 @@ class VanamaIndex():
             visited = set( v for v in visited if dist_from_p[v] < alpha*self.dist_func(p_star, v) )
         
         # Update the out neighbours of p        
-        l = list(out_edges)
-        self.edges[:len(l)] = out_edges
-        # It's possible that we have less than R, so fill empty spots with -1
-        self.edges[len(l):] = -1
-
-    
-
-
-
-
-        
-
-
-
-
-
-
-
-                              
-
-        
-
-
-
-    
+        self.edges[p] = out_edges
