@@ -83,6 +83,35 @@ class VamanaIndex():
         self.keys = []
         self.key_index = {}
 
+    def get(self, idx_or_key: int | Any) -> NDArray:
+        """
+        Return vector by index (or key if keys where passed)
+
+        Parameters
+        ----------
+        idx_or_key : int or Any
+            Index or key of vector to retrieve.
+
+        Returns
+        -------
+        out : NDArray
+            Vector of length d.
+        """        
+        idx = self.key_index[idx_or_key]
+        return self.vectors[idx]
+    
+    def query(self, x: ArrayLike, k:int = 1) -> Any:
+
+        if len(x) != self.d:
+            raise ValueError(f'Dimension of x {len(x)} does not match index dimension {self.d}')
+        if k < 1:
+            raise ValueError(f'Must return at least 1 neighbour')
+
+        x = np.asarray(x)
+        knns, _ = self._greedy_search(x, k)
+        return knns
+                      
+
     def build(self, data: Sequence[ArrayLike], keys: Optional[Sequence[Any]] = None) -> None:
         """
         Build the index from vector data.
@@ -175,19 +204,19 @@ class VamanaIndex():
         
         # Begin at start point
         search_list = VisitPriorityQueue(maxlen=L)
-        search_list.insert((distance(start), start)) # push distance first to allow sorting
+        search_list.insert(distance(start), start) # push distance first to allow sorting
         visited = set()
         # Expand until no unvisited candidate is left
         # (VisitPriorityQueue takes care of iterating over unvisited nodes in order of distance)
-        for dist, p in search_list.visit():            
+        for p in search_list.visit():            
             # Mark p as visited
             visited.add(p)
             # Add all neighbours to candidate list
             # (VisitPriorityQueue takes care of truncating to L top neighbours)
             for nbr in self.edges[p]:
-                search_list.insert((distance(nbr), nbr))                    
+                search_list.insert(distance(nbr), nbr)
         # Return k nearest nodes and visited nodes
-        return [n for _, n in search_list.ksmallest(k)], visited
+        return search_list.ksmallest(k), visited
 
     def _robust_prune(self, p: int, visited: set[int], alpha: Optional[float] = None) -> None:
         """
