@@ -136,7 +136,7 @@ class VanamaIndex():
                 else:
                     candidates = set(self.edges[nbr])
                     candidates.add(p)
-                    self._robust_prune(v, candidates)
+                    self._robust_prune(nbr, candidates)
 
     def _greedy_search(self, x: ArrayLike, k: int = 1, start: Optional[int] = None, L: Optional[int] = None) -> tuple[list[int], set[int]]:
         """
