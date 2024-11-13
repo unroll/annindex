@@ -1,7 +1,6 @@
 from bisect import bisect_left
 from collections.abc import Callable, Generator
 from typing import TypeVar, Any
-from itertools import islice, filterfalse
 from dataclasses import dataclass
 
 T = TypeVar('T')
@@ -210,13 +209,3 @@ if __name__ == '__main__':
     # q will end up storing the smallest values in xs
     assert q.ksmallest(1000) == [ (i, str(i)) for i in range(1000) ]
     
-
-
-
-
-        
-
-    
-
-    
-
