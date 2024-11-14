@@ -7,7 +7,9 @@ from .utils import VisitPriorityQueue
 
 
 
-def randomly_wired_edges(npts: int, nedges: int) -> list[set[int]]:
+ProgressWrapper = Callable[[Sequence, str], Sequence]
+
+def randomly_wired_edges(npts: int, nedges: int, progress_wrapper: Optional[ProgressWrapper] = None) -> list[set[int]]:
     """
     Generate randomly wired outgoing edges for all nodes. 
     Avoids self-loops and double edges, but does not guarantee back-edges: 
@@ -19,6 +21,8 @@ def randomly_wired_edges(npts: int, nedges: int) -> list[set[int]]:
         Number of nodes in the graph
     nedges : int
         Number of edges for each node
+    progress_wrapper : Sequence, str -> Sequence, optional
+            None, or a function that accepets a sequence S and description str, and yields the same sequence S. Useful for progress bar (try `tqdm`).
 
     Returns
     -------
@@ -27,10 +31,13 @@ def randomly_wired_edges(npts: int, nedges: int) -> list[set[int]]:
     """    
     if (nedges >= npts):
         raise RuntimeError('Must have more points than edges per point')
+    
+    if progress_wrapper is None:
+        progress_wrapper = lambda S, d: S
 
     edges = [None] * npts
     # Set random edges row by row
-    for i in range(npts):
+    for i in progress_wrapper(range(npts), 'init edges'):
         # Generate nedges+1 neighbours without replacement
         nbrs = np.random.choice(npts, size=nedges+1, replace=False)
         for j in range(nedges):
@@ -62,7 +69,7 @@ class VamanaIndex():
             None, or a function that accepets a sequence S and description str, and yields the same sequence S. Useful for progress bar (try `tqdm`).
     """            
     def __init__(self, d: int, dist_func: str = 'euclidean', R: int = 64, L: int = 100, alpha: float = 1.2,
-                 progress_wrapper: Optional[Callable[[Sequence, str], Sequence]] = None) -> None:
+                 progress_wrapper: Optional[ProgressWrapper] = None) -> None:
         if R > L and L != 0:
             raise ValueError(f'Cannot create index where R ({R}) is larger than non-zero L ({L})')
         if d <= 0:
@@ -157,7 +164,7 @@ class VamanaIndex():
         self.npts = len(data)        
         self.keys = list(keys) if keys else np.arange(self.npts)
         self.key_index = { k:i for i,k in enumerate(self.keys) }
-        self.vectors = np.array(data)
+        self.vectors = np.asarray(data)
 
         # Build graph
         self._vamana_indexing()
@@ -168,7 +175,7 @@ class VamanaIndex():
         Implements Algorithm 3 in the [paper](https://papers.nips.cc/paper/9527-rand-nsg-fast-accurate-billion-point-nearest-neighbor-search-on-a-single-node.pdf).=
         """        
         # Initialize to randomly chosen edges
-        self.edges = randomly_wired_edges(self.npts, self.R)
+        self.edges = randomly_wired_edges(self.npts, self.R, self.progress_wrapper)
         # Set entry point to medoid.
         self.entry_point = distance.medoid(self.vectors, self.dist_func_name)
         # Update paths

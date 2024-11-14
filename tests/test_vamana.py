@@ -17,7 +17,7 @@ if __name__ == '__main__':
         return indices
     
     n = 10000
-    d = 50
+    d = 128
     nblobs = 5
     k = 10
             
@@ -37,17 +37,21 @@ if __name__ == '__main__':
     
     # Test on first half, should get exact match
     correct = 0
-    for p in range(len(training)):
+    errors = []
+    pbar = tqdm(range(len(training)), desc='train set')    
+    for p in pbar:
         predicted = np.array(vnm.query(training[p], k))
-        diff = predicted == ground_truth_train[p]
+        diff = predicted != ground_truth_train[p]
         if diff.any():
-            print(f'{p}:\tpredicted {predicted}\n\ttrue      {ground_truth_train[p]}')
+            errors.append(p)
         correct += len(set(ground_truth_train[p]).intersection(predicted))
+        pbar.set_postfix_str('recall: {:.3f}'.format(correct/(k*(p+1))))
     print('Recall on train set', correct/(k*len(training)))
+    print('Errors in the following indexes:', errors)
 
     # Test on second half, compute recall
     correct = 0
-    for p in range(len(testing)):
+    for p in tqdm(range(len(testing)), 'test set'):
         predicted = np.array(vnm.query(testing[p], k))
         correct += len(set(ground_truth_test[p]).intersection(predicted))
     print('Recall on test set', correct/(k*len(testing)))
