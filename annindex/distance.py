@@ -1,9 +1,11 @@
 import numpy as np
-from scipy.spatial.distance import pdist, squareform, euclidean, cosine
+from scipy.spatial.distance import pdist, squareform, sqeuclidean, cosine
 from numpy.typing import ArrayLike, NDArray
 
 
-dist_funcs = {'euclidean':euclidean, 
+# Use squared Euclidean distance, not Euclidean.
+# euclidean distance function calls sqrt which causes numpy to check there are no infintes in the array
+dist_funcs = {'euclidean':sqeuclidean,  # we actually use squared e
               'cosine':cosine, 'inner': 
               lambda x,y: -np.inner(x,y) # return negative inner product to return distance, not similarity
               }
@@ -32,9 +34,13 @@ def symmetric_distance_matrix(vectors: ArrayLike, dist_func: str = 'euclidean') 
 
     if dist_func=='inner':
         X = np.array(vectors)
-        return X @ X.T 
-    else:
-        return squareform(pdist(vectors, metric='euclidean'))    
+        return X @ X.T     
+    
+    # Use squared Euclidean distance, not Euclidean.
+    if dist_func == 'euclidean':
+        dist_func = 'sqeuclidean'
+    
+    return squareform(pdist(vectors, metric=dist_func))    
 
 
 def medoid(vectors: ArrayLike, dist_func: str = 'euclidean') -> int:
