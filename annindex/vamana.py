@@ -5,8 +5,6 @@ from typing import Sequence, Iterable, Optional, Any, Callable
 from . import distance
 from .utils import VisitPriorityQueue
 
-
-
 ProgressWrapper = Callable[[Sequence, str], Sequence]
 
 def randomly_wired_edges(npts: int, nedges: int, progress_wrapper: Optional[ProgressWrapper] = None) -> list[set[int]]:
@@ -273,23 +271,37 @@ class VamanaIndex():
         # Avoid self loops if any
         visited.discard(p)
 
-        # Precompute distances from p
-        dist_from_p = { v: self.dist_func(self.vectors[p], self.vectors[v]) for v in visited }
-        # TODO: Since visited never grows, can optimize using array and setting inf distance to "remove".
-
+        
+        # Since set of candidates (visited) never grows, we can use arrays to avoid construction and Python iteration:
+        # store indexes and distances from p in array, set distance to maxval to remove
+        n = len(visited) 
+        visited = np.array(list(visited)) # convert set to array        
+        # Copy vectors of visited to contiguous array for fast one-to-many computation (worth it)
+        visited_vectors = self.vectors[visited]
+        # Precompute distances from p         
+        dist_from_p = np.array([ self.dist_func(self.vectors[p], visited_vectors[i]) for i in range(n) ]) 
+        # Set dist_from_p[i]] to maxval to mark as removed from candidate set
+        maxval = np.finfo(dist_from_p.dtype).max 
+                       
         # Start without neighbours
         out_edges = set()
-        # Iterate until no more candidates
-        while visited:
+        # Iterate until no more candidates (there is no distance below  maxval)
+        while dist_from_p[(i_star := dist_from_p.argmin())] < maxval:
             # Find neareast candidate 
-            d, p_star = min( (dist_from_p[v], v) for v in visited )
+            p_star = visited[i_star]
             # Add it to list of neigbhours
             out_edges.add(p_star)
             # If we have R edges, we're done
             if len(out_edges) == self.R:
                 break
-            # Remove from candidate list points that are too close            
-            visited = set( v for v in visited if dist_from_p[v] < alpha*self.dist_func(self.vectors[p_star], self.vectors[v]) )
+            # Precompute distances from p_star to all visited vectors times factor alpha
+            threshold_dist_from_p_star = distance.one_to_many(self.vectors[p_star], visited_vectors) * alpha
+            # Remove from candidate list points that are too close (by setting their distance to maxval).
+            # Roughly equivalent to:
+            #   visited = set( v for v in visited if dist_from_p_dict[v] < alpha*self.dist_func(self.vectors[p_star], self.vectors[v]) )
+            for i in range(len(visited)):
+                if dist_from_p[i] >= threshold_dist_from_p_star[i]:
+                    dist_from_p[i] = maxval            
         
         # Update the out neighbours of p        
         self.edges[p] = out_edges
