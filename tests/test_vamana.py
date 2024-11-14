@@ -31,7 +31,7 @@ if __name__ == '__main__':
    
     # Build from first half
     print('building index')
-    vnm = VamanaIndex(d, R=32, L=70, progress_wrapper=tqdm)
+    vnm = VamanaIndex(d, progress_wrapper=tqdm)
     vnm.build(training)
 
     
