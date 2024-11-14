@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from heapq import heappush, heappop, nsmallest
-from typing import Sequence, Iterable, Optional, Any
+from typing import Sequence, Iterable, Optional, Any, Callable
 from . import distance
 from .utils import VisitPriorityQueue
 
@@ -58,8 +58,11 @@ class VamanaIndex():
         Maximum size of candidate list during graph construction/traversal. By default, 100.
     alpha : float
         Growth factor for steps towards goal. By default, 1.2.
+    progress_wrapper : Sequence, str -> Sequence, optional
+            None, or a function that accepets a sequence S and description str, and yields the same sequence S. Useful for progress bar (try `tqdm`).
     """            
-    def __init__(self, d: int, dist_func: str = 'euclidean', R: int = 64, L: int = 100, alpha: float = 1.2) -> None:
+    def __init__(self, d: int, dist_func: str = 'euclidean', R: int = 64, L: int = 100, alpha: float = 1.2,
+                 progress_wrapper: Optional[Callable[[Sequence, str], Sequence]] = None) -> None:
         if R > L and L != 0:
             raise ValueError(f'Cannot create index where R ({R}) is larger than non-zero L ({L})')
         if d <= 0:
@@ -76,6 +79,8 @@ class VamanaIndex():
         
         self.dist_func_name = dist_func
         self.dist_func = distance.dist_funcs[dist_func]
+
+        self.progress_wrapper = progress_wrapper if progress_wrapper is not None else lambda S, d: S
         
         self.npts = 0
         self.edges = []
@@ -100,8 +105,23 @@ class VamanaIndex():
         idx = self.key_index[idx_or_key]
         return self.vectors[idx]
     
-    def query(self, x: ArrayLike, k:int = 1) -> Any:
+    def query(self, x: ArrayLike, k:int = 1) -> list[Any] | list[int]:
+        """
+        Return k approximate nearest neighbours to x.
 
+        Parameters
+        ----------
+        x : ArrayLike
+            Vector to search for, dimension d.
+        k : int, optional
+            How many neighbours to return, by default 1
+
+        Returns
+        -------
+        out :
+            list of keys or indexes of k nearest neighbours to x.
+
+        """        
         if len(x) != self.d:
             raise ValueError(f'Dimension of x {len(x)} does not match index dimension {self.d}')
         if k < 1:
@@ -152,7 +172,7 @@ class VamanaIndex():
         # Set entry point to medoid.
         self.entry_point = distance.medoid(self.vectors, self.dist_func_name)
         # Update paths
-        for p in np.random.permutation(self.npts):
+        for p in self.progress_wrapper(np.random.permutation(self.npts), 'indexing'):
             # Find path to p
             nearest, visited = self._greedy_search(self.vectors[p], 1)
             # Update neighbour of p based on visited path
