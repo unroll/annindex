@@ -271,37 +271,60 @@ class VamanaIndex():
         # Avoid self loops if any
         visited.discard(p)
 
-        
-        # Since set of candidates (visited) never grows, we can use arrays to avoid construction and Python iteration:
-        # store indexes and distances from p in array, set distance to maxval to remove
+        # This implementation looks quite from paper the description.
+        # It takes advantage of several facts:
+        # * In every iteration iteration we select neighbour using distance from p to candidates
+        # * The set of candidates ("visited") can only shrink: it never grows or changes otherwise.
+        # * Hence the order of candidate evaluation is fixed, as it's based on min distance, which cannot change.
+        # * Once a candidate is removed, we never need to consider it in any way again.
+        # This allows some optimizations:
+        # 1) Precompute distances to p
+        # 2) Use arrays to avoid set construction, searches, and iteration: 
+        #    instead of creating and managing the visited, we store indexes and and distances from p in array.
+        #    To remove a node, set its distance to a sentinel (-1).
+        # 3) Rather than executing argmin at each turn,  we can pre-sort based on distance from p.
+        #    When iterating over nodes, simply skip those that were removed in previous iteration.
+        # 4) Once we process or skip a candidate, we no longer need to compute or check its distance from p_star.
+        # 5) Use numpy vector operation with masks (boolean indexing) to avoid iteration when checking distances from p and p_star
+
         n = len(visited) 
-        visited = np.array(list(visited)) # convert set to array        
-        # Copy vectors of visited to contiguous array for fast one-to-many computation (worth it)
-        visited_vectors = self.vectors[visited]
+        # Convert to array
+        visited = np.array(list(visited)) 
         # Precompute distances from p         
-        dist_from_p = np.array([ self.dist_func(self.vectors[p], visited_vectors[i]) for i in range(n) ]) 
-        # Set dist_from_p[i]] to maxval to mark as removed from candidate set
-        maxval = np.finfo(dist_from_p.dtype).max 
+        # (this creates an extra copy of vectors, but it's worth it so we can use one_to_many)
+        dist_from_p = distance.one_to_many(self.vectors[p], self.vectors[visited])        
+        # Get the order of looking at candidates
+        order = dist_from_p.argsort()
+        # Update order of visited and dist arrays
+        dist_from_p = dist_from_p[order]
+        visited = visited[order]
+        # Create contiguous array of the vectors of visited nodes, allowing for fast one-to-many computation (worth it)
+        visited_vectors = self.vectors[visited]
+        # Set dist_from_p[i] to mark_removed to mark as removed from candidate set
+        mark_removed = -1
                        
         # Start without neighbours
         out_edges = set()
-        # Iterate until no more candidates (there is no distance below  maxval)
-        while dist_from_p[(i_star := dist_from_p.argmin())] < maxval:
-            # Find neareast candidate 
-            p_star = visited[i_star]
+        # Iterate until no more candidates
+        for idx in range(n):
+            # If this candidate was already removed, move to next
+            if dist_from_p[idx] == mark_removed:
+                continue
+            # Find neareast candidate (no need for argmin since we visit in sorted order)
+            p_star = visited[idx]
             # Add it to list of neigbhours
             out_edges.add(p_star)
             # If we have R edges, we're done
             if len(out_edges) == self.R:
                 break
-            # Precompute distances from p_star to all visited vectors times factor alpha
-            threshold_dist_from_p_star = distance.one_to_many(self.vectors[p_star], visited_vectors) * alpha
-            # Remove from candidate list points that are too close (by setting their distance to maxval).
-            # Roughly equivalent to:
-            #   visited = set( v for v in visited if dist_from_p_dict[v] < alpha*self.dist_func(self.vectors[p_star], self.vectors[v]) )
-            for i in range(len(visited)):
-                if dist_from_p[i] >= threshold_dist_from_p_star[i]:
-                    dist_from_p[i] = maxval            
+            # Precompute distances from p_star to remaining vectors, times factor alpha 
+            # (in theory wasteful, as some of these may have been removed from visited set; in practice it's faster)
+            threshold_dist_from_p_star = distance.one_to_many(self.vectors[p_star], visited_vectors[idx:]) * alpha
+            # Remove from candidate list points that are too close (by setting their distance to mark_removed).
+            # We only need to update nodes not already seen (whose index >= idx)
+            mask = dist_from_p[idx:] >= threshold_dist_from_p_star
+            # Set items to remove. Since mask is shorter than dist array, use slicing and boolean indexing.
+            dist_from_p[idx:][mask] = mark_removed
         
         # Update the out neighbours of p        
         self.edges[p] = out_edges
