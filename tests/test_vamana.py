@@ -9,6 +9,7 @@ from tqdm import tqdm
 if __name__ == '__main__':
     print(f'Running quick-and-dirty unit tests in {__file__}')
 
+    np.random.seed(8352090)
 
     def true_nearest(data, k):
         nn = NearestNeighbors(n_neighbors=k)
