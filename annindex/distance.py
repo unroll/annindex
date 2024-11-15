@@ -42,7 +42,7 @@ def one_to_many(x: ArrayLike, vectors: ArrayLike, dist_func: str = 'euclidean') 
     if dist_func == 'euclidean':
         dist_func = 'sqeuclidean'
     
-    return cdist([x], vectors, metric=dist_func).squeeze()
+    return cdist([x], vectors, metric=dist_func)[0]
 
 def symmetric_distance_matrix(vectors: ArrayLike, dist_func: str = 'euclidean') -> NDArray:
     """
