@@ -26,16 +26,17 @@ if __name__ == '__main__':
     
     training = data[:n//2]
     testing = data[n//2:]
-    nn = NearestNeighbors(n_neighbors=k).fit(training)
-    ground_truth_train = nn.kneighbors(training)[1]
-    ground_truth_test = nn.kneighbors(testing)[1]
-   
+
     # Build from first half
     print('building index')
     vnm = VamanaIndex(d, progress_wrapper=tqdm)
     vnm.build(training)
 
-    
+    print('computing ground truth')
+    nn = NearestNeighbors(n_neighbors=k).fit(training)
+    ground_truth_train = nn.kneighbors(training)[1]
+    ground_truth_test = nn.kneighbors(testing)[1]
+
     # Test on first half, should get exact match
     correct = 0
     errors = []
