@@ -223,25 +223,28 @@ class VamanaIndex():
         else:
             assert start >= 0 and start < self.npts
 
-        # Distance to query                
+        # Distance to query
         x = np.asarray(x)
         distance = lambda idx: self.dist_func(self.vectors[idx], x)
         
         # Begin at start point
         search_list = VisitPriorityQueue(maxlen=L)
         search_list.insert(distance(start), start) # push distance first to allow sorting
+        inserted = set([start])
         visited = set()
         # Expand until no unvisited candidate is left
         # (VisitPriorityQueue takes care of iterating over unvisited nodes in order of distance)
         for p in search_list.visit():            
             # Mark p as visited
             visited.add(p)
-            # Add all unvisited neighbours to candidate list
-            # (VisitPriorityQueue takes care of truncating to L top neighbours)
+            # Add all unvisited neighbours to candidate list (unless already there)
             for nbr in self.edges[p]:
-                if nbr not in visited: 
-                    search_list.insert(distance(nbr), nbr)
-            # TODO: checking if nbr is in visited list may not be worth it, since search_list eliminates duplicates
+                # Avoid reinserting same point twice to search list (also avoids recomputing distance)
+                if nbr not in inserted: 
+                    search_list.insert(distance(nbr), nbr, trim=True)
+                    inserted.add(nbr)
+            # Truncate to L top neighbours
+            search_list.trim()            
         # Return k nearest nodes and visited nodes
         return search_list.ksmallest(k), visited
 

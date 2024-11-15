@@ -16,7 +16,7 @@ class PriorityWrapper():
 class VisitPriorityQueue():
     """
     A variant of priority queue with two crucial differences:
-    it supports limited size, filters returns to previously unvisited elements, and prevents double insertions.
+    it supports limited size, filters returns to previously unvisited elements, and can prevent double insertions.
 
     Parameters
     ----------
@@ -32,7 +32,7 @@ class VisitPriorityQueue():
 
         self._min_unvisited = 0
 
-    def insert(self, priority : P, value : V, trim: bool = True, allow_duplicates: bool = False) -> None:
+    def insert(self, priority : P, value : V, trim: bool = True, prevent_duplicates: bool = False) -> None:
         """
         Insert new unvisited item to queue, optionally preventing duplicated entries.
         When inserting multiple items at a time, can postpone trimming to max length.
@@ -47,14 +47,17 @@ class VisitPriorityQueue():
             Item to insert.
         trim : bool, optional
             By default True. Set to false if inserting many items at at time, and call `self.trim()`. 
-        allow_duplicates : bool, optional
+        prevent_duplicates : bool, optional
             Set `True` to allow duplicated items in the queue. Default is `False`.
         """        
-        # Find insertion point
+        # Find insertion pointf
         wrapped = PriorityWrapper(priority, value, False)
         i = bisect_left(self._data, wrapped)
+        # If trying to insert capacity, nothing to do
+        if self.maxlen > 0 and i >= self.maxlen:
+            return
         # If the item is already in the queue, nothing to do
-        if not allow_duplicates and i < len(self._data):
+        if prevent_duplicates and i < len(self._data):
             if self._data[i].value == value:
                 return
         # Insert
@@ -185,7 +188,7 @@ if __name__ == '__main__':
     assert q.ksmallest(100) ==  q.ksmallest(3)
 
     # Test duplicate detection during iteration
-    q.insert(2,'Y')
+    q.insert(2,'Y', prevent_duplicates=True)
     validate(q, [], 3) # Y already visited and was not reinserted
     assert q.ksmallest(2) ==  ['X', 'Y'] 
     assert q.ksmallest(3) ==  ['X', 'Y', 'Z'] 
