@@ -137,7 +137,7 @@ class VamanaIndex():
         return knns
                       
 
-    def build(self, data: Sequence[ArrayLike], keys: Optional[Sequence[Any]] = None) -> None:
+    def build(self, data: Sequence[ArrayLike], dtype: Optional[np.dtype] = np.float64, keys: Optional[Sequence[Any]] = None) -> None:
         """
         Build the index from vector data.
 
@@ -145,6 +145,8 @@ class VamanaIndex():
         ----------
         data : sequence of vectors
             N vectors. Length must match index dimension `d`.
+        dtype : Optional[np.dtype], optional
+            Datatype for vector data, by default np.float64.
         keys : sequence of keys, optional
             Use supplied keys as index instead of integer index.
         """        
@@ -162,7 +164,8 @@ class VamanaIndex():
         self.npts = len(data)        
         self.keys = list(keys) if keys else np.arange(self.npts)
         self.key_index = { k:i for i,k in enumerate(self.keys) }
-        self.vectors = np.asarray(data)
+        # Efficient way to load data from sequence ( https://perfpy.com/871 )
+        self.vectors = np.fromiter(data, dtype=(dtype, self.d), count=len(data))
 
         # Build graph
         self._vamana_indexing()
