@@ -137,7 +137,7 @@ class VamanaIndex():
         return knns
                       
 
-    def build(self, data: Sequence[ArrayLike], dtype: Optional[np.dtype] = np.float64, keys: Optional[Sequence[Any]] = None) -> None:
+    def build(self, data: Sequence[ArrayLike], dtype: np.dtype = np.float64, keys: Optional[Sequence[Any]] = None) -> None:
         """
         Build the index from vector data.
 
@@ -145,7 +145,7 @@ class VamanaIndex():
         ----------
         data : sequence of vectors
             N vectors. Length must match index dimension `d`.
-        dtype : Optional[np.dtype], optional
+        dtype : np.dtype, optional
             Datatype for vector data, by default np.float64.
         keys : sequence of keys, optional
             Use supplied keys as index instead of integer index.
