@@ -70,9 +70,16 @@ def symmetric_distance_matrix(vectors: ArrayLike, dist_func: str = 'euclidean') 
         X = np.array(vectors)
         return X @ X.T     
     
-    # Use squared Euclidean distance, not Euclidean.
+    # Use squared Euclidean distance, not Euclidean.    
     if dist_func == 'euclidean':
-        dist_func = 'sqeuclidean'
+        # Quick hack: fast multi implementation with linear algebra.
+        # TODO: fix this mess.
+        X = np.asarray(vectors)
+        tmp = np.multiply(X, X).sum(axis=1)
+        res = -2 * np.dot(X, X.T)
+        res += tmp[:, None]
+        res += tmp[None, :]
+        return res
     
     return squareform(pdist(vectors, metric=dist_func))    
 
