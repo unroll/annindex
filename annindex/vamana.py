@@ -110,7 +110,7 @@ class VamanaIndex():
         idx = self.key_index[idx_or_key]
         return self.vectors[idx]
     
-    def query(self, x: ArrayLike, k:int = 1) -> list[Any] | list[int]:
+    def query(self, x: ArrayLike, k:int = 1, L: Optional[int] = None) -> list[Any] | list[int]:
         """
         Return k approximate nearest neighbours to x.
 
@@ -120,6 +120,8 @@ class VamanaIndex():
             Vector to search for, dimension d.
         k : int, optional
             How many neighbours to return, by default 1
+        L : int, optional
+            Length of neighbour candidate list. If not provided, uses `self.L`.
 
         Returns
         -------
@@ -131,9 +133,13 @@ class VamanaIndex():
             raise ValueError(f'Dimension of x {len(x)} does not match index dimension {self.d}')
         if k < 1:
             raise ValueError(f'Must return at least 1 neighbour')
+        if L is None:
+            L = self.L        
+        if L < k:
+            raise ValueError(f'L ({L}) must be at least k ({k})')
 
         x = np.asarray(x)
-        knns, _ = self._greedy_search(x, k)
+        knns, _ = self._greedy_search(x, k, L=L)
         return knns
                       
 
