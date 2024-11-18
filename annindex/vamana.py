@@ -4,6 +4,7 @@ from heapq import heappush, heappop, nsmallest
 from typing import Sequence, Iterable, Optional, Any, Callable
 from . import distance
 from .utils import VisitPriorityQueue
+from dataclasses import dataclass
 
 ProgressWrapper = Callable[[Sequence, str], Sequence]
 
@@ -46,6 +47,11 @@ def randomly_wired_edges(npts: int, nedges: int, progress_wrapper: Optional[Prog
         edges[i] = set(nbrs[:-1])
     
     return edges
+
+@dataclass
+class QueryStats():
+    """Statistics for Vamana queries."""    
+    nhops: int = 0
 
 class VamanaIndex():
     """
@@ -110,7 +116,7 @@ class VamanaIndex():
         idx = self.key_index[idx_or_key]
         return self.vectors[idx]
     
-    def query(self, x: ArrayLike, k:int = 1, L: Optional[int] = None) -> list[Any] | list[int]:
+    def query(self, x: ArrayLike, k:int = 1, L: Optional[int] = None, out_stats: Optional[QueryStats] = None) -> list[Any] | list[int]:
         """
         Return k approximate nearest neighbours to x.
 
@@ -122,12 +128,13 @@ class VamanaIndex():
             How many neighbours to return, by default 1
         L : int, optional
             Length of neighbour candidate list. If not provided, uses `self.L`.
+        out_stats : QueryStats, option
+            Statistics about the query.            
 
         Returns
         -------
         out :
             list of keys or indexes of k nearest neighbours to x.
-
         """        
         if len(x) != self.d:
             raise ValueError(f'Dimension of x {len(x)} does not match index dimension {self.d}')
@@ -137,9 +144,11 @@ class VamanaIndex():
             L = self.L        
         if L < k:
             raise ValueError(f'L ({L}) must be at least k ({k})')
-
+        if out_stats is None:
+            out_stats = QueryStats()
+        
         x = np.asarray(x)
-        knns, _ = self._greedy_search(x, k, L=L)
+        knns, _ = self._greedy_search(x, k, L=L, out_stats=out_stats)
         return knns
                       
 
@@ -198,7 +207,7 @@ class VamanaIndex():
                 else:
                     self._robust_prune(nbr, self.edges[nbr].union([p]))
 
-    def _greedy_search(self, x: ArrayLike, k: int = 1, start: Optional[int] = None, L: Optional[int] = None) -> tuple[list[int], set[int]]:
+    def _greedy_search(self, x: ArrayLike, k: int = 1, start: Optional[int] = None, L: Optional[int] = None, out_stats: Optional[QueryStats] = None) -> tuple[list[int], set[int]]:
         """
         Greedily explore to nearest point, and return set of visited nodes.
         Implements Algorithm 1 in the [paper](https://papers.nips.cc/paper/9527-rand-nsg-fast-accurate-billion-point-nearest-neighbor-search-on-a-single-node.pdf).
@@ -213,6 +222,8 @@ class VamanaIndex():
             If provided, index of start node instead of `self.entry_point`.
         L : Optional[int], optional
             Length of neighbour candidate list. If not provided, uses `self.L`.
+        out_stats : QueryStats, optional
+            Statistics about the query.
 
         Returns
         -------
@@ -231,6 +242,8 @@ class VamanaIndex():
             start = self.entry_point
         else:
             assert start >= 0 and start < self.npts
+        if out_stats is None:
+            out_stats = QueryStats()
 
         # Distance to query
         x = np.asarray(x)
@@ -244,6 +257,7 @@ class VamanaIndex():
         # Expand until no unvisited candidate is left
         # (VisitPriorityQueue takes care of iterating over unvisited nodes in order of distance)
         for p in search_list.visit():            
+            out_stats.nhops += 1
             # Mark p as visited
             visited.add(p)
             # Add all unvisited neighbours to candidate list (unless already there)
