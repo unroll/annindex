@@ -199,13 +199,14 @@ class VamanaIndex():
             # Find path to p
             nearest, visited = self._greedy_search(self.vectors[p], 1)
             # Update neighbour of p based on visited path
-            self._robust_prune(p, visited)
+            p_edges = self._robust_prune(p, visited)
+            self.edges[p] = p_edges
             # Update p's neigbhbours to point back to p
-            for nbr in self.edges[p]:
+            for nbr in p_edges:
                 if len(self.edges[nbr]) < self.R:
                     self.edges[nbr].add(p)
                 else:
-                    self._robust_prune(nbr, self.edges[nbr].union([p]))
+                    self.edges[nbr] = self._robust_prune(nbr, self.edges[nbr].union([p]))
 
     def _greedy_search(self, x: ArrayLike, k: int = 1, start: Optional[int] = None, L: Optional[int] = None, out_stats: Optional[QueryStats] = None) -> tuple[list[int], set[int]]:
         """
@@ -271,7 +272,7 @@ class VamanaIndex():
         # Return k nearest nodes and visited nodes
         return search_list.ksmallest(k), visited
 
-    def _robust_prune(self, p: int, visited: set[int], alpha: Optional[float] = None) -> None:
+    def _robust_prune(self, p: int, visited: set[int], alpha: Optional[float] = None) -> set[int]:
         """
         Use the visited path from the entry point during greedy search to prune out edges of a point. 
         Implements Algorithm 2 in the [paper](https://papers.nips.cc/paper/9527-rand-nsg-fast-accurate-billion-point-nearest-neighbor-search-on-a-single-node.pdf).
@@ -286,6 +287,11 @@ class VamanaIndex():
             Candidates for edges of p (the set of points visited during `_greedy_search`). Modified during operation.
         alpha : Optional[float], optional
             Distance growth factor. Omit to use `self.alpha`.
+
+        Returns
+        -------
+        out : set[int]
+            New set of neighbours for p.
         """
         assert p >= 0 and p < self.npts
         assert len(visited) > 0
@@ -352,7 +358,7 @@ class VamanaIndex():
             # Set items to remove. Since mask is shorter than dist array, use slicing and boolean indexing.
             dist_from_p[idx:][mask] = mark_removed
         
-        # Update the out neighbours of p        
-        self.edges[p] = out_edges
+        # Return the out neighbours of p        
+        return out_edges
 
 
