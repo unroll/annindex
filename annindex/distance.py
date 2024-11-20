@@ -6,8 +6,8 @@ from numpy.typing import ArrayLike, NDArray
 # Use squared Euclidean distance, not Euclidean.
 # euclidean distance function calls sqrt which causes numpy to check there are no infintes in the array
 dist_funcs = {'euclidean':sqeuclidean,  # we actually use squared e
-              'cosine':cosine, 'inner': 
-              lambda x,y: -np.inner(x,y) # return negative inner product to return distance, not similarity
+              'cosine':cosine, 
+              'inner':lambda x,y: -np.inner(x,y) # return negative inner product to return distance, not similarity
               }
 
 def one_to_many(x: ArrayLike, vectors: ArrayLike, dist_func: str = 'euclidean') -> NDArray:

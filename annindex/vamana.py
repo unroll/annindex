@@ -1,12 +1,12 @@
-import numpy as np
-from numpy.typing import ArrayLike, NDArray
 from heapq import heappush, heappop, nsmallest
-from typing import Sequence, Iterable, Optional, Any, Callable
-from . import distance
-from .utils import VisitPriorityQueue
+from typing import Sequence, Optional, Any
 from dataclasses import dataclass
+import numpy as np
+from numpy.typing import ArrayLike
+from . import distance
+from .base import BaseIndex, ProgressWrapper
+from .utils import VisitPriorityQueue
 
-ProgressWrapper = Callable[[Sequence, str], Sequence]
 
 def randomly_wired_edges(npts: int, nedges: int, progress_wrapper: Optional[ProgressWrapper] = None) -> list[set[int]]:
     """
@@ -53,7 +53,7 @@ class QueryStats():
     """Statistics for Vamana queries."""    
     nhops: int = 0
 
-class VamanaIndex():
+class VamanaIndex(BaseIndex):
     """
     Vamana nearest neighbour search index, as described in Section 2 of the [DiskANN paper](https://papers.nips.cc/paper/9527-rand-nsg-fast-accurate-billion-point-nearest-neighbor-search-on-a-single-node.pdf).
 
@@ -74,49 +74,20 @@ class VamanaIndex():
     """            
     def __init__(self, d: int, dist_func: str = 'euclidean', R: int = 64, L: int = 100, alpha: float = 1.2,
                  progress_wrapper: Optional[ProgressWrapper] = None) -> None:
+        
         if R > L and L != 0:
             raise ValueError(f'Cannot create index where R ({R}) is larger than non-zero L ({L})')
-        if d <= 0:
-            raise ValueError('Cannot create index with negative or zero d')
         if alpha < 1:
             raise ValueError('alpha must be at least 1.0')
-        if dist_func not in distance.dist_funcs:
-            raise ValueError(f'Unkown distance function {dist_func}. Supported: {list(distance.dist_funcs.keys())}')
 
-        self.d = d
         self.R = R
         self.L = L
         self.alpha = alpha
-        
-        self.dist_func_name = dist_func
-        self.dist_func = distance.dist_funcs[dist_func]
-
-        self.progress_wrapper = progress_wrapper if progress_wrapper is not None else lambda S, d: S
-        
-        self.npts = 0
         self.edges = []
-        self.vectors = None
-        self.keys = []
-        self.key_index = {}
 
-    def get(self, idx_or_key: int | Any) -> NDArray:
-        """
-        Return vector by index (or key if keys where passed)
-
-        Parameters
-        ----------
-        idx_or_key : int or Any
-            Index or key of vector to retrieve.
-
-        Returns
-        -------
-        out : NDArray
-            Vector of length d.
-        """        
-        idx = self.key_index[idx_or_key]
-        return self.vectors[idx]
+        super().__init__(d, dist_func, progress_wrapper=progress_wrapper)
     
-    def query(self, x: ArrayLike, k:int = 1, L: Optional[int] = None, out_stats: Optional[QueryStats] = None) -> list[Any] | list[int]:
+    def query(self, x: ArrayLike, k:int = 1, L: Optional[int] = None, out_stats: Optional[QueryStats] = None, *args, **kwargs) -> list[Any] | list[int]:
         """
         Return k approximate nearest neighbours to x.
 
@@ -136,10 +107,9 @@ class VamanaIndex():
         out :
             list of keys or indexes of k nearest neighbours to x.
         """        
-        if len(x) != self.d:
-            raise ValueError(f'Dimension of x {len(x)} does not match index dimension {self.d}')
-        if k < 1:
-            raise ValueError(f'Must return at least 1 neighbour')
+        # Verify arguments
+        super().query(x, k)
+
         if L is None:
             L = self.L        
         if L < k:
@@ -149,10 +119,10 @@ class VamanaIndex():
         
         x = np.asarray(x)
         knns, _ = self._greedy_search(x, k, L=L, out_stats=out_stats)
-        return knns
+        return self._idxs_to_keys(knns)
                       
 
-    def build(self, data: Sequence[ArrayLike], dtype: np.dtype = np.float64, keys: Optional[Sequence[Any]] = None) -> None:
+    def build(self, data: Sequence[ArrayLike], dtype: np.dtype = np.float64, keys: Optional[Sequence[Any]] = None, *args, **kwargs) -> None:
         """
         Build the index from vector data.
 
@@ -166,22 +136,10 @@ class VamanaIndex():
             Use supplied keys as index instead of integer index.
         """        
         # Sanity checks
-        if len(data) == 0:
-            raise ValueError('Cannot build index from empty array')        
         if len(data) < self.R:
             raise ValueError(f'Cannot build index for fewer vectors than R={self.R}')
-        if keys is not None and len(data) != len(keys):
-            raise ValueError(f"List of keys supplied, but it's length {len(keys)} does not match length of data {len}")        
-        if len(data[0]) != self.d:
-            raise ValueError(f'Data dimention {len(data[0])} does not match expected dimension {self.d}')
-        
-        # Copy keys and vectors
-        self.npts = len(data)        
-        self.keys = list(keys) if keys else np.arange(self.npts)
-        self.key_index = { k:i for i,k in enumerate(self.keys) }
-        # Efficient way to load data from sequence ( https://perfpy.com/871 )
-        self.vectors = np.fromiter(data, dtype=(dtype, self.d), count=len(data))
-
+        # Copy vector
+        super().build(data, dtype, keys)
         # Build graph
         self._vamana_indexing()
 
