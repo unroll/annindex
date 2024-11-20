@@ -89,7 +89,8 @@ class ProductQuantization():
             return squareform(d, checks=False)
 
         if self.precalc_distances:
-            self.center_distances = [ get_compressed_distances(km.cluster_centers_) for km in progress_wrapper(self.kms, 'precomputing distances') ]
+            self.center_distances = np.array([ get_compressed_distances(km.cluster_centers_) for km in progress_wrapper(self.kms, 'precomputing distances') ])
+            self._arange_n = np.arange(self.n_chunks)
         else:
             self.center_distances = None
 
@@ -177,18 +178,31 @@ class ProductQuantization():
         # This works by precalculating distances between all cluster centers ("pivots") of each chunk.
         # For many distance functions the distance is a sum of scalars computed from the vector scalars. 
         # In such cases so we can compute the distance d(x,y) as a sum of partial distances d(x[..], y[..]) from each chunk.
-        assert self.center_distances
-        d = 0.0
+        assert self.center_distances is not None
+        
         m = self.chunk_clusters
-        for x, y, precalced in zip(x_code, y_code, self.center_distances):
-            # We are only storing the i<j cases
-            if x == y:
-                continue            
-            i, j = (int(x), int(y)) if x < y else (int(y), int(x))
-            #  Compressed form formula: dist(i,j) where i<j is stored in: 
-            idx = m * i + j - ((i + 2) * (i + 1)) // 2
-            d += precalced[idx]
-        return d
+        # Make a (2, m) array of ints
+        xy = np.vstack([x_code, y_code]).astype(int)
+        # Sort such that xy[0] < xy[1] 
+        xy.sort(axis=0)
+        i, j = xy[0], xy[1]
+        # Compute array of indexes into center_distances[0], center_distances[1], ...
+        idx = m * i + j - ((i + 2) * (i + 1)) // 2
+        # idx[i] indexs center_distances[i], so use 2D array index using [0,1,2,3...] for first dim
+        # Only sum when i != j
+        return self.center_distances[self._arange_n, idx][i != j].sum()       
 
+        # The preceding code is equivalent to the following plain Python code:
+        # 
+        # d = 0.0
+        # m = self.chunk_clusters
+        # for x, y, precalced in zip(x_code, y_code, self.center_distances):
+        #     # We are only storing the i<j cases
+        #     if x == y:
+        #         continue            
+        #     i, j = (int(x), int(y)) if x < y else (int(y), int(x))
+        #     #  Compressed form formula: dist(i,j) where i<j is stored in: 
+        #     idx = m * i + j - ((i + 2) * (i + 1)) // 2
+        #     d += precalced[idx]
+        # return d
 
-    

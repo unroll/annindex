@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     est_dist = np.zeros_like(true_dist)
     est_time = 0
-    for i in tqdm(range(len(pq.codes)), 'comparing'):
+    for i in tqdm(range(len(pq.codes)), 'comparing with precalc'):
         start = perf_counter_ns()
         row_dist = [ pq.distance(pq.get_code(i), pq.get_code(j)) for j in range(len(pq.codes)) ]
         est_time += perf_counter_ns() - start            
@@ -43,12 +43,11 @@ if __name__ == '__main__':
     np.fill_diagonal(est_dist, 1.0)
     compare_matrices('estimatied (precalc) vs true', true_dist, est_dist)
     
-    pq.precalc_distances = False
     est2_dist = np.zeros_like(true_dist)
     est2_time = 0
-    for i in tqdm(range(len(pq.codes)), 'comparing'):
+    for i in tqdm(range(len(pq.codes)), 'comparing without precalc'):
         start = perf_counter_ns()
-        row_dist = [ pq.distance(pq.get_code(i), pq.get_code(j)) for j in range(len(pq.codes)) ]
+        row_dist = [ pq.distance(pq.get_code(i), pq.get_code(j), allow_precalc=False) for j in range(len(pq.codes)) ]
         est2_time += perf_counter_ns() - start            
         est2_dist[i, :] = row_dist 
     np.fill_diagonal(est2_dist, 1.0)
