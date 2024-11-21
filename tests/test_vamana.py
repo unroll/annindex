@@ -30,7 +30,8 @@ if __name__ == '__main__':
     # Build from first half
     print('building index')
     vnm = VamanaIndex(d, progress_wrapper=tqdm)
-    vnm.build(training)
+    vnm.load(training, len(training))
+    vnm.build()
 
     print('computing ground truth')
     nn = NearestNeighbors(n_neighbors=k).fit(training)

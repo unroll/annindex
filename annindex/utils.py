@@ -1,10 +1,37 @@
 from bisect import bisect_left
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Sequence, Iterator
 from typing import TypeVar, Any
 from dataclasses import dataclass
+from itertools import chain
 
 P = TypeVar('P')
 V = TypeVar('V')
+
+def peek_iterator(x: Iterator[P]) -> tuple[P, Iterator[P]]:
+    """
+    Peeks to top of iterator and return new iterator equivalent to the old one (before peeking).
+
+    Do not use in a loop, it is will result in quadratic complexity.
+
+    Parameters
+    ----------
+    x : Iterator[P]
+        Iterator to peek into
+
+    Returns
+    -------
+    first : P
+        First item in x
+    newit : Iterator[P]
+        New iterator equivalent to the original x (will yield the first item again)
+    """        
+    if isinstance(x, Sequence):        
+        return x[0], x # if its a list or array, just return first item
+    else:
+        # Peek one element to check that dimension matches
+        gen = iter(x)
+        first = next(gen)
+        return first, chain([first], gen)
 
 @dataclass(order=True)
 class PriorityWrapper():

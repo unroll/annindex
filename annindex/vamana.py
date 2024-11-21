@@ -122,24 +122,14 @@ class VamanaIndex(BaseIndex):
         return self._idxs_to_keys(knns)
                       
 
-    def build(self, data: Sequence[ArrayLike], dtype: np.dtype = np.float64, keys: Optional[Sequence[Any]] = None, *args, **kwargs) -> None:
+    def build(self) -> None:
         """
         Build the index from vector data.
-
-        Parameters
-        ----------
-        data : sequence of vectors
-            N vectors. Length must match index dimension `d`.
-        dtype : np.dtype, optional
-            Datatype for vector data, by default np.float64.
-        keys : sequence of keys, optional
-            Use supplied keys as index instead of integer index.
-        """        
+        """
+        super().build()        
         # Sanity checks
-        if len(data) < self.R:
+        if self.npts < self.R:
             raise ValueError(f'Cannot build index for fewer vectors than R={self.R}')
-        # Copy vector
-        super().build(data, dtype, keys)
         # Build graph
         self._vamana_indexing()
 

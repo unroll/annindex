@@ -19,7 +19,8 @@ if __name__ == '__main__':
 
     vecs, labels = make_blobs(n, d, centers=nblobs)
 
-    pq = ProductQuantization(vecs, progress_wrapper=tqdm)
+    pq = ProductQuantization(d,  progress_wrapper=tqdm)
+    pq.compress(vecs, len(vecs))
     
     start = perf_counter_ns()
     true_dist = euclidean_distances(vecs, squared=True)

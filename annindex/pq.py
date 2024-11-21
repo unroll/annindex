@@ -1,17 +1,18 @@
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Iterable
 import numpy as np
 from scipy.spatial.distance import squareform
 from numpy.typing import ArrayLike
 from sklearn.cluster import KMeans
 from . import distance
 from .base import ProgressWrapper
+from .utils import peek_iterator
 
 # Compressed form of a vector is a list/array of integers
 CodeWord = Sequence[np.unsignedinteger]
 
-class ProductQuantization():    
+class ProductQuantization:    
     """
-    Compresses incoming vectors by partitioning the space to chunk and running vector quantization there.
+    Compresses vectors by partitioning the space to chunk and running vector quantization there.
 
     Dense vectors are compressed to *code words* -- sequence of numbers -- using a *code book* derived from the data when building the compression.
     The class also provides a distance function between code words.
@@ -19,16 +20,17 @@ class ProductQuantization():
 
     Parameters
     ----------
-    data : sequence of vectors
-        N vectors of length d.
+    d : int
+        Dimension of vectors.
     chunk_dim : int, optional
-        How many dimensions to include in each chunk, by default 4. For example if d is 64 and chunk_dim is 4, there will be 16 chunks.
+        How many dimensions to include in each chunk, by default 4. For example, if d is 64 and chunk_dim is 4, there will be 16 chunks.
     chunk_bits : int, optional
         How many bits to allocate for each chunk, by default 8. (In practice, more bits are allocated; see notes.)
     dist_func : str, optional
-        Distance function to use: `euclidean`, `cosine`, or `inner` (for inner product). By default, `euclidean'.
+        Distance function to use: `euclidean`, `cosine`, or `inner` (for inner product). By default, `euclidean`.
     allow_precalc_distances : bool, optional
-        For certain distance functions and chunk_bits, distance computation can be optimzied with precalculated tables at the cost of more memory (see notes). Set to False to disable this optimization. By default, True.
+        For certain distance functions and chunk_bits, distance computation can be optimzied with precalculated
+        tables at the cost of more memory (see notes). Set to False to disable this optimization. By default, True.
     progress_wrapper : Sequence, str -> Sequence, optional
             None, or a function that accepets a sequence S and description str, and yields the same sequence S. Useful for progress bar (try `tqdm`).
     
@@ -36,20 +38,18 @@ class ProductQuantization():
     -----
     1. Current implementation allocates the next sufficient native datatype (uint8, uint16, uint32...) per chunk, so not all memory savings are realized.
     2. For certain distance functions (currently `euclidean` and `inner`) when chunk_bits is not too high (10 or less),
-       distance computation can be accelerated by computing it as sum of pre-calculated codebook distances. 
-       This incurs extra memory and can be disabled.
+       distance computation can be accelerated by computing it as sum of pre-calculated codebook distances.
+       This incurs extra memory and can be disabled.    
     """                
-    def __init__(self, data: Sequence[ArrayLike], 
+    def __init__(self, 
+                 d: int,
                  chunk_dim: int = 4, chunk_bits: int = 8,
                  dist_func: str = 'euclidean', # not used for clustering
                  allow_precalc_distances: bool = True,
                  progress_wrapper: Optional[ProgressWrapper] = None) -> None:        
         
-        if len(data) == 0:
-            raise ValueError('Cannot work on no data')
-        d = len(data[0])
         if d <= 0:
-            raise ValueError(f'Dimension {d} must be at least 1')
+            raise ValueError(f'Dimension d must be at least 1, not {d}')
         if chunk_dim > d or (d % chunk_dim) != 0:
             raise ValueError(f'Dimension {d} must be dividisble by chunk dimension {chunk_dim}')
         if chunk_bits < 2 or chunk_bits > 16:
@@ -57,7 +57,6 @@ class ProductQuantization():
         if dist_func not in distance.dist_funcs:
             raise ValueError(f'Unkown distance function {dist_func}. Supported: {list(distance.dist_funcs.keys())}')        
 
-        
         self.d = d
         self.chunk_dim = chunk_dim
         self.chunk_bits = chunk_bits
@@ -67,29 +66,43 @@ class ProductQuantization():
         self.dist_func_name = dist_func
         self.dist_func = distance.dist_funcs[dist_func]
         self.precalc_distances = (allow_precalc_distances) and dist_func in {'euclidean', 'inner'} and self.chunk_bits <= 10
+        self.progress_wrapper = progress_wrapper if progress_wrapper is not None else lambda S, d: S 
 
-                        
-        X = np.fromiter(data, dtype=(float, self.d), count=len(data))
+    def compress(self, data: Iterable[ArrayLike], data_len: int) -> None:
+        """
+        Compresses incoming vectors.
+
+        Parameters
+        ----------
+        data : sequence of vectors
+            N vectors. Length must match index dimension `d`.
+        data_len : int
+            Length of data N. Must be at least 1.
+        """
+        first_vec, data = peek_iterator(data)
+        if len(first_vec) != self.d:
+            raise ValueError(f'Data dimention {len(first_vec)} does not match expected dimension {self.d}')
+        X = np.fromiter(data, dtype=(float, self.d), count=data_len)
         n = len(X)
-        
+
         # Build array to hold centroid ids, using the nearest dtype size to chunk_bits 
-        # (yes, this is actually fudging things)
+        # TODO: replace with something like bitarray
         potential_dtypes = [np.uint8, np.uint16, np.uint32]
-        self.chunk_dtype = next( dt for dt in potential_dtypes if np.dtype(dt).itemsize*8 >= chunk_bits )        
+        self.chunk_dtype = next( dt for dt in potential_dtypes if np.dtype(dt).itemsize*8 >= self.chunk_bits )        
         self.codes = np.zeros((n, self.n_chunks), dtype=self.chunk_dtype) 
 
-        for i in progress_wrapper(range(self.n_chunks), 'clustering chunks'):
+        for i in self.progress_wrapper(range(self.n_chunks), 'clustering chunks'):
             X_chunk = X[:, i*self.chunk_dim:(i+1)*self.chunk_dim]
             ids = self.kms[i].fit_predict(X_chunk)
             self.codes[:,i] = ids
         
         def get_compressed_distances(vecs):
             # Get symmetric distance matrix
-            d = distance.symmetric_distance_matrix(vecs, dist_func)
+            d = distance.symmetric_distance_matrix(vecs, self.dist_func_name)
             return squareform(d, checks=False)
 
         if self.precalc_distances:
-            self.center_distances = np.array([ get_compressed_distances(km.cluster_centers_) for km in progress_wrapper(self.kms, 'precomputing distances') ])
+            self.center_distances = np.array([ get_compressed_distances(km.cluster_centers_) for km in self.progress_wrapper(self.kms, 'precomputing distances') ])
             self._arange_n = np.arange(self.n_chunks)
         else:
             self.center_distances = None
