@@ -3,7 +3,8 @@ from typing import Callable, Sequence, Optional, Any, Iterable, Iterator
 from abc import ABC, abstractmethod
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
-from . import distance
+
+from .distance import get_distance_func
 from .utils import peek_iterator
 
 # Type variable for progress bars. Creates a progress bar from a sequence, with a string title.
@@ -125,21 +126,20 @@ class BaseIndex(BaseStore):
     ----------
     d : int
         Vector dimension
-    dist_func : str
-        Distance function to use: `euclidean`, `cosine`, or `inner` (for inner product). By default, `euclidean'.
+    dist_name : str
+        Distance function to use: ``euclidean``, ``sqeuclidean`` (squared Euclidean) ``cosine``, or ``inner`` (for inner product). 
+        By default, ``sqeuclidean``.
     progress_wrapper : Sequence, str -> Sequence, optional
             None, or a function that accepets a sequence S and description str, and yields the same sequence S. Useful for progress bar (try `tqdm`).
     """            
-    def __init__(self, d: int, dist_func: str = 'euclidean', progress_wrapper: Optional[ProgressWrapper] = None) -> None:
+    def __init__(self, d: int, dist_name: str = 'sqeuclidean', progress_wrapper: Optional[ProgressWrapper] = None) -> None:
 
         if d <= 0:
             raise ValueError('Cannot create index with negative or zero d')
-        if dist_func not in distance.dist_funcs:
-            raise ValueError(f'Unkown distance function {dist_func}. Supported: {list(distance.dist_funcs.keys())}')
 
         self.d = d
-        self.dist_func_name = dist_func
-        self.dist_func = distance.dist_funcs[dist_func]
+        self.external_dist_name = dist_name
+        self.dist_func = get_distance_func(dist_name, internal_use=True)
         self.progress_wrapper = progress_wrapper if progress_wrapper is not None else lambda S, d: S 
 
         self.npts = 0

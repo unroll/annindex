@@ -1,9 +1,9 @@
 from typing import Optional, Sequence, Iterable
 import numpy as np
-from scipy.spatial.distance import squareform
 from numpy.typing import ArrayLike
 from sklearn.cluster import KMeans
-from . import distance
+
+from .distance import get_distance_func
 from .base import ProgressWrapper
 from .utils import peek_iterator
 
@@ -26,8 +26,9 @@ class ProductQuantization:
         How many dimensions to include in each chunk, by default 4. For example, if d is 64 and chunk_dim is 4, there will be 16 chunks.
     chunk_bits : int, optional
         How many bits to allocate for each chunk, by default 8. (In practice, more bits are allocated; see notes.)
-    dist_func : str, optional
-        Distance function to use: `euclidean`, `cosine`, or `inner` (for inner product). By default, `euclidean`.
+    dist_name : str, optional
+        Distance function to use: ``euclidean``, ``sqeuclidean`` (squared Euclidean) ``cosine``, or ``inner`` (for inner product). 
+        By default, ``sqeuclidean``.
     allow_precalc_distances : bool, optional
         For certain distance functions and chunk_bits, distance computation can be optimzied with precalculated
         tables at the cost of more memory (see notes). Set to False to disable this optimization. By default, True.
@@ -44,7 +45,7 @@ class ProductQuantization:
     def __init__(self, 
                  d: int,
                  chunk_dim: int = 4, chunk_bits: int = 8,
-                 dist_func: str = 'euclidean', # not used for clustering
+                 dist_name: str = 'euclidean', # not used for clustering
                  allow_precalc_distances: bool = True,
                  progress_wrapper: Optional[ProgressWrapper] = None) -> None:        
         
@@ -54,8 +55,6 @@ class ProductQuantization:
             raise ValueError(f'Dimension {d} must be dividisble by chunk dimension {chunk_dim}')
         if chunk_bits < 2 or chunk_bits > 16:
             raise ValueError(f'Can only support between 2 and 16 bits for each chunk, not {chunk_bits}')
-        if dist_func not in distance.dist_funcs:
-            raise ValueError(f'Unkown distance function {dist_func}. Supported: {list(distance.dist_funcs.keys())}')        
 
         self.d = d
         self.chunk_dim = chunk_dim
@@ -63,9 +62,9 @@ class ProductQuantization:
         self.chunk_clusters = 2**chunk_bits
         self.n_chunks = d // chunk_dim
         self.kms = [ KMeans(n_clusters=self.chunk_clusters) for i in range(self.n_chunks) ]        
-        self.dist_func_name = dist_func
-        self.dist_func = distance.dist_funcs[dist_func]
-        self.precalc_distances = (allow_precalc_distances) and dist_func in {'euclidean', 'inner'} and self.chunk_bits <= 10
+        self.external_dist_name = dist_name
+        self.dist_func = get_distance_func(dist_name, internal_use=True)
+        self.precalc_distances = (allow_precalc_distances) and self.dist_func.name in {'sqeuclidean', 'inner'} and self.chunk_bits <= 10
         self.progress_wrapper = progress_wrapper if progress_wrapper is not None else lambda S, d: S 
 
     def compress(self, data: Iterable[ArrayLike], data_len: int) -> None:
@@ -96,13 +95,8 @@ class ProductQuantization:
             ids = self.kms[i].fit_predict(X_chunk)
             self.codes[:,i] = ids
         
-        def get_compressed_distances(vecs):
-            # Get symmetric distance matrix
-            d = distance.symmetric_distance_matrix(vecs, self.dist_func_name)
-            return squareform(d, checks=False)
-
         if self.precalc_distances:
-            self.center_distances = np.array([ get_compressed_distances(km.cluster_centers_) for km in self.progress_wrapper(self.kms, 'precomputing distances') ])
+            self.center_distances = np.array([ self.dist_func.allpairs_compressed(km.cluster_centers_) for km in self.progress_wrapper(self.kms, 'precomputing distances') ])
             self._arange_n = np.arange(self.n_chunks)
         else:
             self.center_distances = None
@@ -144,7 +138,7 @@ class ProductQuantization:
         if self.precalc_distances and allow_precalc:
             return self._precalced_distance(x_code, y_code)
         else:
-            return self.dist_func(self.code_to_vec(x_code), self.code_to_vec(y_code))
+            return self.dist_func.distance(self.code_to_vec(x_code), self.code_to_vec(y_code))
 
     def code_to_vec(self, code: CodeWord) -> np.ndarray[float]:
         """

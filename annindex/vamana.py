@@ -3,7 +3,8 @@ from typing import Sequence, Optional, Any
 from dataclasses import dataclass
 import numpy as np
 from numpy.typing import ArrayLike
-from . import distance
+
+from .distance import medoid
 from .base import BaseIndex, ProgressWrapper
 from .utils import VisitPriorityQueue
 
@@ -61,7 +62,7 @@ class VamanaIndex(BaseIndex):
     ----------
     d : int
         Vector dimension
-    dist_func : str
+    dist_name : str
         Distance function to use: `euclidean`, `cosine`, or `inner` (for inner product). By default, `euclidean'.
     R : int
         Maximum out-degree. By default, 64.
@@ -72,7 +73,7 @@ class VamanaIndex(BaseIndex):
     progress_wrapper : Sequence, str -> Sequence, optional
             None, or a function that accepets a sequence S and description str, and yields the same sequence S. Useful for progress bar (try `tqdm`).
     """            
-    def __init__(self, d: int, dist_func: str = 'euclidean', R: int = 64, L: int = 100, alpha: float = 1.2,
+    def __init__(self, d: int, dist_name: str = 'euclidean', R: int = 64, L: int = 100, alpha: float = 1.2,
                  progress_wrapper: Optional[ProgressWrapper] = None) -> None:
         
         if R > L and L != 0:
@@ -85,7 +86,7 @@ class VamanaIndex(BaseIndex):
         self.alpha = alpha
         self.edges = []
 
-        super().__init__(d, dist_func, progress_wrapper=progress_wrapper)
+        super().__init__(d, dist_name, progress_wrapper=progress_wrapper)
     
     def query(self, x: ArrayLike, k:int = 1, L: Optional[int] = None, out_stats: Optional[QueryStats] = None, *args, **kwargs) -> list[Any] | list[int]:
         """
@@ -141,7 +142,7 @@ class VamanaIndex(BaseIndex):
         # Initialize to randomly chosen edges
         self.edges = randomly_wired_edges(self.npts, self.R, self.progress_wrapper)
         # Set entry point to medoid.
-        self.entry_point = distance.medoid(self.vectors, self.dist_func_name)
+        self.entry_point = medoid(self.vectors, self.external_dist_name)
         # Update paths
         for p in self.progress_wrapper(np.random.permutation(self.npts), 'indexing'):
             # Find path to p
@@ -196,7 +197,7 @@ class VamanaIndex(BaseIndex):
 
         # Distance to query
         x = np.asarray(x)
-        distance = lambda idx: self.dist_func(self.vectors[idx], x)
+        distance = lambda idx: self.dist_func.distance(self.vectors[idx], x)
         
         # Begin at start point
         search_list = VisitPriorityQueue(maxlen=L)
@@ -272,7 +273,7 @@ class VamanaIndex(BaseIndex):
         visited = np.array(list(visited)) 
         # Precompute distances from p         
         # (this creates an extra copy of vectors, but it's worth it so we can use one_to_many)
-        dist_from_p = distance.one_to_many(self.vectors[p], self.vectors[visited])        
+        dist_from_p = self.dist_func.one2many(self.vectors[p], self.vectors[visited])        
         # Get the order of looking at candidates
         order = dist_from_p.argsort()
         # Update order of visited and dist arrays
@@ -299,7 +300,7 @@ class VamanaIndex(BaseIndex):
                 break
             # Precompute distances from p_star to remaining vectors, times factor alpha 
             # (in theory wasteful, as some of these may have been removed from visited set; in practice it's faster)
-            threshold_dist_from_p_star = distance.one_to_many(self.vectors[p_star], visited_vectors[idx:]) * alpha
+            threshold_dist_from_p_star = self.dist_func.one2many(self.vectors[p_star], visited_vectors[idx:]) * alpha
             # Remove from candidate list points that are too close (by setting their distance to mark_removed).
             # We only need to update nodes not already seen (whose index >= idx)
             mask = dist_from_p[idx:] >= threshold_dist_from_p_star
