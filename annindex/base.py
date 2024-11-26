@@ -3,12 +3,16 @@ from typing import Callable, Sequence, Optional, Any, Iterable, Iterator
 from abc import ABC, abstractmethod
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+from functools import wraps
 
-from .distance import get_distance_func
+from .distance import get_distance_func, DistanceFunction
 from .utils import peek_iterator
 
 # Type variable for progress bars. Creates a progress bar from a sequence, with a string title.
 ProgressWrapper = Callable[[Sequence, str], Sequence]
+
+
+
 
 class BaseStore(ABC):
     """
@@ -134,18 +138,13 @@ class BaseIndex(BaseStore):
     """            
     def __init__(self, d: int, dist_name: str = 'sqeuclidean', progress_wrapper: Optional[ProgressWrapper] = None) -> None:
 
-        if d <= 0:
-            raise ValueError('Cannot create index with negative or zero d')
+        super().__init__(d)
 
-        self.d = d
         self.external_dist_name = dist_name
         self.dist_func = get_distance_func(dist_name, internal_use=True)
         self.progress_wrapper = progress_wrapper if progress_wrapper is not None else lambda S, d: S 
 
-        self.npts = 0
-        self.vectors = None
-        self.keys = None
-        self.key_index = None
+
     
     def get(self, idx_or_key: int | Any) -> NDArray:
         """
@@ -193,3 +192,124 @@ class BaseIndex(BaseStore):
         """        
         if self.npts <= 0:
             raise RuntimeError('No vectors to build index from -- call load() first.')
+
+
+class BaseCompressor(ABC):
+    """
+    Base type for compressors like PQ, OPQ, SQ, and so on. 
+
+    Do not instantiate directly -- use derived classes.
+     
+    Parameters
+    ----------
+    d : int
+        Vector dimension
+    progress_wrapper : Sequence, str -> Sequence, optional
+            None, or a function that accepets a sequence S and description str, and yields the same sequence S. Useful for progress bar (try `tqdm`).
+    """    
+    def __init__(self, d: int, progress_wrapper: Optional[ProgressWrapper] = None) -> None:        
+        if d <= 0:
+            raise ValueError(f'Dimension d must be at least 1, not {d}')
+        self.d = d
+        self.progress_wrapper = progress_wrapper if progress_wrapper is not None else lambda S, d: S 
+
+    @abstractmethod
+    def load_and_compress(self, data: Iterable[ArrayLike], data_len: int, *args, **kwargs) -> Sequence[Any]:
+        """
+        Initializes compression and return compressed vectors.
+
+        The Compressor object only stores information needed for compression and decompression.
+        It does not store the compressed vectors internally.
+        
+        Parameters
+        ----------
+        data : sequence of vectors
+            N vectors. Length must match index dimension `d`.
+        data_len : int
+            Length of data N. Must be at least 1.
+        
+        Returns
+        -------
+        out : Sequence[Any]
+            Compressed vectors.
+            
+        """
+        pass
+
+    @abstractmethod
+    def decompress(self, compressed: Any) -> np.ndarray[float]:
+        """
+        Decompress vector(s)
+
+        Parameters
+        ----------
+        compressed :
+            Single compressed vector or a sequence (array/list) of vectors.
+
+        Returns
+        -------
+        out : np.ndarray[float]
+            Decompressed vector or vectorsd.
+        """                
+        pass
+
+    @abstractmethod
+    def compress(self, x: np.ndarray) -> Any | Sequence[Any]:
+        """
+        Compress a single or a sequence of vectors.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Vector to compress, or 2D array for compressing multiple vectors.
+
+        Returns
+        -------
+        out : 
+            Compressed vector or vectors.
+        """                        
+        return self.vec_to_code(x)    
+    
+    def get_distance_function(self, dist_name: str = 'sqeuclidean', specialized: bool = True) -> DistanceFunction:
+        """
+        Return a potentially specialized distance function object that works directly on compressed vectors
+        and return the distance betrween the decompressed vectors.
+
+        Requesting a specialized implementation does not guarantee getting one.
+        The result may simply decompresses the vectors and calls the original distance function.                
+
+        Parameters
+        ----------
+        dist_name : str
+            Distance function to use, by default, ``sqeuclidean``.
+
+        Returns
+        -------
+        out : DistanceFunction
+            Distance function for compressed data.
+        is_specialized : bool
+            True if out is an optimized implementation for compressed data. False if not.
+
+        Notes
+        -----        
+        Do not call this function in performance-critical paths -- it may require significant precomputation. 
+        Instead, get the resulting DistanceObject object in advance and store it.
+
+        """                
+        # Default implementation simply wraps the original distance function 
+        # to decompress parameters.
+        original = get_distance_func(dist_name)
+        def decompressed(f):
+            @wraps(f)
+            def decompressed_distance(*args, **kwargs):                
+                return f(*(self.decompress(argument) for argument in args), **kwargs)
+            return decompressed_distance
+        
+        new_dist_func = DistanceFunction(original.name + ' compressed',
+                                         allpairs=decompressed(original.allpairs),
+                                         pairwise=decompressed(original.pairwise),
+                                         one2many=decompressed(original.one2many),
+                                         distance=decompressed(original.distance),
+                                         allpairs_nonsquare=decompressed(original.allpairs_nonsquare)
+                                         )
+        return new_dist_func, False

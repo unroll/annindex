@@ -16,11 +16,11 @@ class DistanceFunction:
     pairwise: Callable[[Matrix, Matrix], float]
     one2many: Callable[[Vector, Matrix], float]
     distance: Callable[[Vector, Vector], float]
-    allpairs_compressed: Callable[[Matrix], float] = None
+    allpairs_nonsquare: Callable[[Matrix], float] = None
 
     def __post_init__(self):
-        if self.allpairs_compressed is None:
-            self.allpairs_compressed = lambda X: squareform(self.allpairs(X), checks=False)
+        if self.allpairs_nonsquare is None:
+            self.allpairs_nonsquare = lambda X: squareform(self.allpairs(X), checks=False)
 
 
 def _squared_euclidean_distance_matrix(X, Y=None):

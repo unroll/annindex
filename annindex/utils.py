@@ -1,8 +1,11 @@
 from bisect import bisect_left
-from collections.abc import Callable, Generator, Sequence, Iterator
-from typing import TypeVar, Any
+from collections.abc import Generator, Sequence, Iterator
+from typing import TypeVar, Iterable, Optional
 from dataclasses import dataclass
 from itertools import chain
+import numpy as np
+from numpy.typing import ArrayLike, NDArray, DTypeLike
+
 
 P = TypeVar('P')
 V = TypeVar('V')
@@ -32,6 +35,33 @@ def peek_iterator(x: Iterator[P]) -> tuple[P, Iterator[P]]:
         gen = iter(x)
         first = next(gen)
         return first, chain([first], gen)
+    
+def load_from_iterator(data: Iterable[ArrayLike], data_len: int, dimension: int, dtype: DTypeLike = np.float64) -> NDArray:
+    """
+    Efficiently load data from an iterator to an array.
+
+    Data length and dimensionality must be specified in advance for efficiency.
+
+    Parameters
+    ----------
+    data : sequence of vectors
+        N vectors. Length must match index dimension `d`.
+    data_len : int
+        Length of data N. Must be at least 1.
+    dimension : int
+        Expected dimension of the vectors. Raises error if actual dimension does not match.
+    
+    Returns
+    -------
+    out : NDArray
+        2D array of vectors of length `dimension` and type `dtype`
+    """        
+    first_vec, data = peek_iterator(data)
+    if len(first_vec) != dimension:
+        raise ValueError(f'Data dimention {len(first_vec)} does not match expected dimension {dimension}')
+    X = np.fromiter(data, dtype=(float, dimension), count=data_len)
+    return X
+
 
 @dataclass(order=True)
 class PriorityWrapper():
