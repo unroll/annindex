@@ -17,10 +17,13 @@ class DistanceFunction:
     one2many: Callable[[Vector, Matrix], float]
     distance: Callable[[Vector, Vector], float]
     allpairs_nonsquare: Callable[[Matrix], float] = None
+    paired:   Callable[[Matrix, Matrix], float] = None
 
     def __post_init__(self):
         if self.allpairs_nonsquare is None:
             self.allpairs_nonsquare = lambda X: squareform(self.allpairs(X), checks=False)
+        if self.paired is None:
+            self.paired = lambda X, Y: np.array([ self.distance(x,y) for x, y in zip(X,Y) ])
 
 
 def _squared_euclidean_distance_matrix(X, Y=None):
@@ -36,18 +39,26 @@ def _squared_euclidean_distance_matrix(X, Y=None):
     res += YY[None, :]
     return res    
 
+def _squared_euclidean_distance_paired(X, Y):
+    # Fast multi-core implementation that uses linear algebra.
+    n = min(len(X), len(Y))
+    return ((X[:n] - Y[:n])**2).sum(axis=1)
+    
+
 _distance_functions = [ 
     DistanceFunction('euclidean', 
                      allpairs = skmp.euclidean_distances,
                      pairwise = skmp.euclidean_distances,
                      one2many = lambda x, Y: cdist([x], Y, metric='euclidean')[0], 
-                     distance = lambda x, y: np.sqrt(((x-y)**2).sum())
+                     distance = lambda x, y: np.sqrt(((x-y)**2).sum()),
+                     paired   = lambda X, Y: np.sqrt(_squared_euclidean_distance_paired(X, Y))
     ),
     DistanceFunction('sqeuclidean', 
                      allpairs = lambda X: skmp.euclidean_distances(X, squared=True),
                      pairwise = lambda X, Y: skmp.euclidean_distances(X, Y, squared=True),
                      one2many = lambda x, Y: cdist([x], Y, metric='sqeuclidean')[0], 
-                     distance = lambda x, y: ((x-y)**2).sum()
+                     distance = lambda x, y: ((x-y)**2).sum(),
+                     paired   = _squared_euclidean_distance_paired
     ),
     DistanceFunction('inner',  # invert inner product sign so it sorts like a distance
                      allpairs = lambda X: -(X @ X.T),
@@ -113,6 +124,11 @@ if __name__ == '__main__':
     print(f'sklearn:  {min(repeat(lambda: skmp.euclidean_distances(ONE, X, squared=True), repeat=3, number=100 )):.3f}' )
     print(f'homebrew: {min(repeat(lambda: _squared_euclidean_distance_matrix(ONE, X)[0], repeat=3, number=100 )):.3f}' )
     print(f'scipy:    {min(repeat(lambda: cdist(ONE, X, metric="sqeuclidean")[0], repeat=3, number=100 )):.3f}' )
+    print()
+    print('paired')
+    print(f'sklearn:  {min(repeat(lambda: skmp.paired_euclidean_distances(X, X[::-1])**2, repeat=3, number=5 )):.3f}' )
+    print(f'homebrew: {min(repeat(lambda: _squared_euclidean_distance_paired(X, X[::-1]), repeat=3, number=5 )):.3f}' )
+    print(f'loop: {min(repeat(lambda: np.array([ ((x-y)**2).sum() for x, y in zip(X, X[::-1]) ]), repeat=3, number=5 )):.3f}' )
     print()
     print('pairwise 10:1')
     print(f'sklearn:  {min(repeat(lambda: skmp.euclidean_distances(X, Y, squared=True), repeat=3, number=5 )):.3f}' )

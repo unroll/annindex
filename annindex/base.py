@@ -310,6 +310,7 @@ class BaseCompressor(ABC):
                                          pairwise=decompressed(original.pairwise),
                                          one2many=decompressed(original.one2many),
                                          distance=decompressed(original.distance),
-                                         allpairs_nonsquare=decompressed(original.allpairs_nonsquare)
+                                         allpairs_nonsquare=decompressed(original.allpairs_nonsquare),
+                                         paired=decompressed(original.paired),
                                          )
         return new_dist_func, False
