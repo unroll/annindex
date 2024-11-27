@@ -187,7 +187,8 @@ class VamanaIndex(BaseIndex):
         if L is None:
             L = self.L
         assert L >= k or L == 0
-        assert len(x) == self.d
+        # Note len(x) may not match self.d due to use of assymetric distance computation with compression
+        # assert len(x) == self.d
         if start is None:
             start = self.entry_point
         else:
@@ -197,7 +198,7 @@ class VamanaIndex(BaseIndex):
 
         # Distance to query
         x = np.asarray(x)
-        distance = lambda idx: self.dist_func.distance(self.vectors[idx], x)
+        distance = lambda idx: self.dist_func.distance(x, self.vectors[idx])
         
         # Begin at start point
         search_list = VisitPriorityQueue(maxlen=L)

@@ -59,6 +59,8 @@ class ProductQuantization(BaseCompressor):
 
         self.center_distances = dict() # set later by _init_precalc_distances
         
+    def get_compressed_d(self) -> int:
+        return self.n_chunks
 
     def load_and_compress(self, data: Iterable[ArrayLike], data_len: int, *args, **kwargs) -> Sequence[Any]:
         """
