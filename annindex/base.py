@@ -214,6 +214,13 @@ class BaseCompressor(ABC):
         self.progress_wrapper = progress_wrapper if progress_wrapper is not None else lambda S, d: S 
 
     @abstractmethod
+    def get_compressed_d(self) -> int:
+        """
+        Return length of compressed vectors.
+        """        
+        pass
+
+    @abstractmethod
     def load_and_compress(self, data: Iterable[ArrayLike], data_len: int, *args, **kwargs) -> Sequence[Any]:
         """
         Initializes compression and return compressed vectors.
@@ -272,7 +279,7 @@ class BaseCompressor(ABC):
     
     def get_distance_function(self, dist_name: str = 'sqeuclidean', specialized: bool = True) -> DistanceFunction:
         """
-        Return a potentially specialized distance function object that works directly on compressed vectors
+        Return a (potentially specialized) distance function object that works directly on compressed vectors
         and return the distance betrween the decompressed vectors.
 
         Requesting a specialized implementation does not guarantee getting one.
@@ -312,5 +319,50 @@ class BaseCompressor(ABC):
                                          distance=decompressed(original.distance),
                                          allpairs_nonsquare=decompressed(original.allpairs_nonsquare),
                                          paired=decompressed(original.paired),
+                                         )
+        return new_dist_func, False
+
+    def get_assymetric_distance_function(self, dist_name: str = 'sqeuclidean', specialized: bool = True) -> DistanceFunction:
+        """
+        Return (a potentially specialized) asymmetric distance function object that returns the distrance
+        between uncompressed vecotrs (`x` or `X`) to compressed vectors (`y` or `Y`).
+
+        Requesting a specialized implementation does not guarantee getting one.
+        The result may simply decompresses the righthand compressed vectors and call the original distance function.
+
+        Parameters
+        ----------
+        dist_name : str
+            Distance function to use, by default, ``sqeuclidean``.
+
+        Returns
+        -------
+        out : DistanceFunction
+            Distance function for compressed data.
+        is_specialized : bool
+            True if out is an optimized implementation for compressed data. False if not.
+
+        Notes
+        -----        
+        Do not call this function in performance-critical paths -- it may require significant precomputation. 
+        Instead, get the resulting DistanceObject object in advance and store it.
+
+        """                
+        # Default implementation simply wraps the original distance function 
+        # to decompress the Y parameter.
+        original = get_distance_func(dist_name)
+        def decompressY(f):
+            @wraps(f)
+            def decompressed_Y(x, y, *args, **kwargs):                
+                return f(x, self.decompress(y), *args, **kwargs)
+            return decompressed_Y
+        
+        new_dist_func = DistanceFunction(original.name + ' assymetric',
+                                         allpairs=original.allpairs,
+                                         pairwise=decompressY(original.pairwise),
+                                         one2many=decompressY(original.one2many),
+                                         distance=decompressY(original.distance),
+                                         allpairs_nonsquare=decompressY(original.allpairs_nonsquare),
+                                         paired=decompressY(original.paired),
                                          )
         return new_dist_func, False
