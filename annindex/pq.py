@@ -134,19 +134,28 @@ class ProductQuantization(BaseCompressor):
             
         # Precompute distances between cluster centers               
         dist_func = get_distance_func(dist_name, internal_use=True)
-        center_distances = np.array([ dist_func.allpairs_nonsquare(km.cluster_centers_) for km in self.progress_wrapper(self.kms, 'precomputing distances') ])
-        self._arange_n = np.arange(self.n_chunks) # precreate this, useful for all precalced distance functions
+        center_distances = np.array([ dist_func.allpairs_nonsquare(km.cluster_centers_) for km in self.progress_wrapper(self.kms, 'precomputing distances') ])        
+        # Compute dist (x,x) for pseudo-distance functions that are not reflexive (e.g., inner prod)
+        if dist_name in {'inner'}:
+            self_distances = np.array([ dist_func.paired(km.cluster_centers_, km.cluster_centers_) for km in self.progress_wrapper(self.kms, 'precomputing distances') ])
+        else:
+            self_distances = None
+        # Caching arange, used by for all precalced distance functions regardless of dist_name
+        self._arange_n = np.arange(self.n_chunks) 
         
-        # Build new distance function        
+        # Build new distance function that uses preco
         new_dist_func = DistanceFunction(dist_name + ' pq compressed',
                                          allpairs=unoptimized_dist_func.allpairs,
                                          pairwise=unoptimized_dist_func.pairwise,
                                          # One-to-many is implemented by repeating x and computing paired distances between X[i] and Y[i]
-                                         one2many=lambda x,Y: self._precalced_distance_paired(np.tile(x, (len(Y), 1)), Y, center_distances),
-                                         distance=lambda x,y: self._precalced_distance_one_pair(x, y, center_distances),
-                                         allpairs_nonsquare=unoptimized_dist_func.allpairs_nonsquare
+                                         one2many=lambda x,Y: self._precalced_distance_paired(np.tile(x, (len(Y), 1)), Y, center_distances, self_distances),
+                                         distance=lambda x,y: self._precalced_distance_one_pair(x, y, center_distances, self_distances),
+                                         allpairs_nonsquare=unoptimized_dist_func.allpairs_nonsquare,
+                                         paired=lambda X,Y: self._precalced_distance_paired(X, Y, center_distances, self_distances),
                                          )
-        new_dist_func.center_distances = center_distances # recorded as member
+        # Recorded precalculated distances as members
+        new_dist_func.center_distances = center_distances 
+        new_dist_func.self_distances = self_distances
 
         return new_dist_func, True
                 
@@ -232,7 +241,7 @@ class ProductQuantization(BaseCompressor):
         """                        
         return self.vec_to_code(x)
     
-    def _precalced_distance_one_pair(self, x_code: CodeWord, y_code: CodeWord, precalced_center_distances) -> float:
+    def _precalced_distance_one_pair(self, x_code: CodeWord, y_code: CodeWord, precalced_center_distances: np.ndarray, precalced_self_distances: np.ndarray) -> float:
         """
         Implement optimized precalculated version
         """
@@ -250,10 +259,19 @@ class ProductQuantization(BaseCompressor):
         # Compute array of indexes into center_distances[0], center_distances[1], ...
         idx = m * i + j - ((i + 2) * (i + 1)) // 2
         # idx[i] indexs center_distances[i], so use 2D array index using [0,1,2,3...] for first dim
-        # Only sum when i != j
-        return precalced_center_distances[self._arange_n, idx][i != j].sum()       
+        partials = precalced_center_distances[self._arange_n, idx]    
+        # The non-square form does not include the cases where i==j, it is designed for dist(x,x)=0
+        mask = i == j        
+        # Condensed form does not include the cases where i==j as it assumes distance is reflexive
+        if precalced_self_distances is not None:
+            # Restore dist(x,x) for cases where dist(x,x) != 0
+            # (non-square form does not include the cases where i==j as it assumes distance is reflexive)     
+            partials[mask] = precalced_self_distances[self._arange_n, i][mask]
+            return partials.sum()
+        else:
+            return precalced_center_distances[self._arange_n, idx][i != j].sum()      
 
-        # The preceding code is equivalent to the following plain Python code:
+        # The preceding code is equivalent to the following plain Python code for when dist(x,x)=0:
         # 
         # d = 0.0
         # m = self.chunk_clusters
@@ -267,7 +285,7 @@ class ProductQuantization(BaseCompressor):
         #     d += precalced[idx]
         # return d
 
-    def _precalced_distance_paired(self, x_codes: Sequence[CodeWord], y_codes: Sequence[CodeWord], precalced_center_distances: np.ndarray) -> float:
+    def _precalced_distance_paired(self, x_codes: Sequence[CodeWord], y_codes: Sequence[CodeWord], precalced_center_distances: np.ndarray, precalced_self_distances: np.ndarray) -> float:
         """
         Implement optimized precalculated version compariing x[i] and y[i]
         """
@@ -287,7 +305,16 @@ class ProductQuantization(BaseCompressor):
         idx = m * i + j - ((i + 2) * (i + 1)) // 2
         # idx[i] indexs center_distances[i], so use 2D array index using [0,1,2,3...] for first dim
         partials = precalced_center_distances[self._arange_n, idx]
-        # Only sum when i != j since the non-square form does not include those
-        partials[i == j] = 0
-        return partials.sum(axis=1)       
+        
+        # Condensed form does not include the cases where i==j as it assumes distance is reflexive
+        if precalced_self_distances is not None:
+            # Restore dist(x,x) for cases where dist(x,x) != 0
+            mask = i == j
+            partials[mask] = precalced_self_distances[self._arange_n, i][mask]                  
+        else:
+            # Do not sum where i==j
+            partials[i == j] = 0
+        return partials.sum(axis=1) 
+
+        
 

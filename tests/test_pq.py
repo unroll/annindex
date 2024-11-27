@@ -94,7 +94,7 @@ def test_distance_function(X, dist_func, prefix):
     D = dist_func.pairwise(X[m:], X[m:])
     t2.stop()
     pairwise_dist = np.block([[A, B],
-                                [C, D]])
+                              [C, D]])
     
     one2many_dist = np.zeros((npts, npts))
     onebyone_dist = np.zeros((npts, npts))
@@ -112,14 +112,18 @@ def test_distance_function(X, dist_func, prefix):
         onebyone_dist[i, :] = row
 
     t5 = Timer('nonsquare')
-    dist = dist_func.allpairs_nonsquare(X)
+    nonsquare_dist = dist_func.allpairs_nonsquare(X)
     t5.stop()
-    nonsquare_dist = squareform(dist)
+
+    t6 = Timer('paired')
+    paired_dist = dist_func.paired(X, X[::-1])
+    t6.stop()    
 
     assert np.allclose(allpairs_dist, onebyone_dist)
     assert np.allclose(one2many_dist, onebyone_dist)
     assert np.allclose(pairwise_dist, onebyone_dist)            
-    assert np.allclose(nonsquare_dist, onebyone_dist)            
+    assert np.allclose(nonsquare_dist, squareform(onebyone_dist, checks=False))
+    assert np.allclose(paired_dist, onebyone_dist[np.arange(npts), np.arange(npts)[::-1]])
     print(prefix, 'All distance methods agree')
 
     print(prefix, t1)
@@ -127,6 +131,7 @@ def test_distance_function(X, dist_func, prefix):
     print(prefix, t3)
     print(prefix, t4)
     print(prefix, t5)
+    print(prefix, t6)
 
     return allpairs_dist
 
