@@ -9,7 +9,7 @@ from .base import BaseIndex, ProgressWrapper
 from .utils import VisitPriorityQueue
 
 
-def randomly_wired_edges(npts: int, nedges: int, progress_wrapper: Optional[ProgressWrapper] = None) -> list[set[int]]:
+def randomly_wired_edges(npts: int, nedges: int | Sequence[int], progress_wrapper: Optional[ProgressWrapper] = None) -> list[set[int]]:
     """
     Generate randomly wired outgoing edges for all nodes. 
     Avoids self-loops and double edges, but does not guarantee back-edges: 
@@ -19,18 +19,25 @@ def randomly_wired_edges(npts: int, nedges: int, progress_wrapper: Optional[Prog
     ----------
     npts : int
         Number of nodes in the graph
-    nedges : int
-        Number of edges for each node
+    nedges : int or sequence of `npts` integers
+        Number of edges for each node. If single number, all nodes have the same number of edges.
     progress_wrapper : Sequence, str -> Sequence, optional
             None, or a function that accepets a sequence S and description str, and yields the same sequence S. Useful for progress bar (try `tqdm`).
 
     Returns
     -------
     G : list of sets of integers
-        A list of length npts with a sets of size nedges edges per node.
+        A list of length `npts` with sets of size `nedges` (or ``nedges[i]``) edges per node.
     """    
-    if (nedges >= npts):
-        raise RuntimeError('Must have more points than edges per point')
+    if isinstance(nedges, Sequence):
+        if len(nedges != npts):
+            raise RuntimeError(f'length of nedges {len(nedges)} must match npts {npts}')
+        if any( n >= npts for n in nedges ):
+            raise RuntimeError('Must have more points than edges per point')
+    else:
+        if (nedges >= npts):
+            raise RuntimeError('Must have more points than edges per point')
+        nedges = [nedges] * npts
     
     if progress_wrapper is None:
         progress_wrapper = lambda S, d: S
@@ -39,8 +46,8 @@ def randomly_wired_edges(npts: int, nedges: int, progress_wrapper: Optional[Prog
     # Set random edges row by row
     for i in progress_wrapper(range(npts), 'init edges'):
         # Generate nedges+1 neighbours without replacement
-        nbrs = np.random.choice(npts, size=nedges+1, replace=False)
-        for j in range(nedges):
+        nbrs = np.random.choice(npts, size=nedges[i]+1, replace=False)
+        for j in range(nedges[i]):
             # To avoid self loop, replace i with the last generated neighbour if needed
             if nbrs[j] == i:
                 nbrs[j] = nbrs[-1] # guaranteed not be i since we sample without replacement
@@ -63,7 +70,7 @@ class VamanaIndex(BaseIndex):
     d : int
         Vector dimension
     dist_name : str
-        Distance function to use: `euclidean`, `cosine`, or `inner` (for inner product). By default, `euclidean'.
+        Distance function to use: `euclidean`, `cosine`, or `inner` (for inner product). By default, `euclidean`.
     R : int
         Maximum out-degree. By default, 64.
     L : int
@@ -133,6 +140,7 @@ class VamanaIndex(BaseIndex):
             raise ValueError(f'Cannot build index for fewer vectors than R={self.R}')
         # Build graph
         self._vamana_indexing()
+    
 
     def _vamana_indexing(self) -> None:
         """
@@ -221,7 +229,7 @@ class VamanaIndex(BaseIndex):
         # Return k nearest nodes and visited nodes
         return search_list.ksmallest(k), visited
 
-    def _robust_prune(self, p: int, visited: set[int], alpha: Optional[float] = None) -> set[int]:
+    def _robust_prune(self, p: int, visited: set[int], alpha: Optional[float] = None, R: Optional[int] = None) -> set[int]:
         """
         Use the visited path from the entry point during greedy search to prune out edges of a point. 
         Implements Algorithm 2 in the [paper](https://papers.nips.cc/paper/9527-rand-nsg-fast-accurate-billion-point-nearest-neighbor-search-on-a-single-node.pdf).
@@ -234,18 +242,23 @@ class VamanaIndex(BaseIndex):
             Index of point whose neighbours we are pruning.
         visited : set[int]
             Candidates for edges of p (the set of points visited during `_greedy_search`). Modified during operation.
-        alpha : Optional[float], optional
+        alpha : float, optional
             Distance growth factor. Omit to use `self.alpha`.
+        R : int, optional;
+            Maximum out-degree. Omit to use `self.R`.
 
         Returns
         -------
         out : set[int]
-            New set of neighbours for p.
+            New set of neighbours for p of length `R` or less.
         """
         assert p >= 0 and p < self.npts
         assert len(visited) > 0
         if alpha is None:
             alpha = self.alpha
+        if R is None:
+            R = self.R
+
 
         # Add current neighbours of p to list of candidates
         visited.update(self.edges[p])
@@ -296,7 +309,7 @@ class VamanaIndex(BaseIndex):
             # Add it to list of neigbhours
             out_edges.add(p_star)
             # If we have R edges, we're done
-            if len(out_edges) == self.R:
+            if len(out_edges) == R:
                 break
             # Precompute distances from p_star to remaining vectors, times factor alpha 
             # (in theory wasteful, as some of these may have been removed from visited set; in practice it's faster)
