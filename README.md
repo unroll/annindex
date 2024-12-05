@@ -1,19 +1,19 @@
-# Annindex
+# annindex
 
 Approximate nearest neighbour search indices implemented in Python, targeted at researchers, small projects, and learners.
 
 ## Description
 
-Annindex contains easy-to-use, easy to understand, reasonably-performing implementations of modern approximate nearest neighbour search (ANNS) indexes.
+`annindex` provides easy-to-use, easy to understand, reasonably-performing implementations of modern approximate nearest neighbour search (ANNS) indexes.
 Modern vector databases (VDBMS) rely on such indexes to provide fast and accurate nearest neighbour queries.
 
 Indexes in annindex are implemented in Python directly from pseudo-code in the relevant papers, aiming at simplicity rather than performance or comprehensive features.
-Read the [philosophy](#philosophy-or-why-do-this)) behind how annindex is meant to help researchers. 
+Read the [philosophy](#philosophy-or-why-do-this) behind how `annindex` is meant to help researchers. 
 If you are going for top performance or production-grade code, try [something else](https://github.com/facebookresearch/faiss).
 
 ## Getting Started
 
-The aim to publish annindex on PyPI. once that is achieved, it should be possible to `pip install annindex`.
+The aim to publish `annindex` on PyPI. once that is achieved, it should be possible to `pip install annindex`.
 
 Unfortunately we are not quite there yet (see [roadmap](#roadmap)), so currently you should check out or otherwise download the code, install the prerequisites yourself, and set up `PYTHONPATH` if needed.
 
@@ -36,7 +36,7 @@ For now, see class, method, and function docstrings
 
 ## Philosophy (or, Why Do This?)
 
-Why do we need annindex? 
+Why do we need `annindex`? 
 After all, there are several high quality implementations of ANNS indexes that provide excellent performance, low memory, maximum flexibility, and comprehensive features: [FAISS](https://github.com/facebookresearch/faiss), [hnswlib](https://github.com/nmslib/hnswlib), and [DiskANN](https://github.com/microsoft/DiskANN)), to mention some.
 
 The downside of such quality is that their codebase can be complex: thousands of lines of multi-threaded C++ code interfacing with dependencies to utilize GPUs, multi-core CPUs, disks, and so on.
@@ -63,20 +63,20 @@ This presents several problems for anyone who wants to quickly test new ideas, p
 [^1]: This is not meant to pick on DiskANN. 
       It is a genuine achievement with a large impact on industry and academia.
       Even studying how the implementation differs from the theory is instructive.
-      Nevertheless, the codebase is not conductive to fast experimental modifications nor easy understanding of the algorithm.
+      Nevertheless, the codebase is not conducive to fast experimental modifications nor easy understanding of the algorithm.
 
-### Goals (or, Who Is Annindex For?)
-Annindex is meant to serve several audiences: researchers, tinkerers, small project developers, and those trying to learn about vector databases.
+### Goals (or, Who Is annindex For?)
+`annindex` is meant to serve several audiences: researchers, tinkerers, small project developers, and those trying to learn about vector databases.
 
-First and foremost, annindex is meant to address the above issues by creating a small, simple library of important state-of-the-art and classic ANNS indexes that is easy to use with only very common requirements.
+First and foremost, `annindex` is meant to address the above issues by creating a small, simple library of important state-of-the-art and classic ANNS indexes that is easy to use with only very common requirements.
 Researchers could then use it both as a basis for comparison, and as a way to quickly try out many new ideas.
-The code should match the algorithm well, so that reading it could help them learn how an index works.
+The code should track the algorithm/pseudocode closely, so that reading it could help them learn how an index works.
 
-annindex should be usable for small projects, homework assignments, and implementing simple, non-production VDBMSs.
+`annindex` should be usable for small projects, homework assignments, and implementing simple, non-production VDBMSs.
 Perhaps you need a quick, easy to use nearest neighbour search index with few dependencies dependencies on up to 100K vectors? 
 
-Finally, one hopes annindex becomes a destination for designers of new ANNS indices.
-It should (hopefully) be easy for authors of new indexes to contribute a straightforward Python implementation of their new index to the annindex library.
+Finally, one hopes `annindex` becomes a destination for designers of new ANNS indices.
+It should (hopefully) be easy for authors of new indexes to contribute a straightforward Python implementation of their new index to the `annindex` library.
 This would make it easier for others to compare to the new work.
 
 
@@ -112,9 +112,9 @@ This would make it easier for others to compare to the new work.
 * Simple to use and extend, even at cost of encapsulation and reusability.
   - Straightforward public APIs.
   - Do not limit extenders.
-    For example, implementing a new graph-based index does not *require* deriving from from some "GraphIndexBase", a "LoaderMixin" and .
-  - Provide some simple base classes that can help, but it is not required.
-    Moreover, base classes currently only offer a very limited private interface for derived classes (this is not ideal).
+    For example, implementing a new graph-based index does not *require* deriving from some "GraphIndexBase", a "LoaderMixin", and a "QueryableMixin".[^2]
+  - Provides some base classes to help implementors, but they are not required.
+    Moreover, base classes currently only offer a very limited private interface for derived classes (*this is not ideal, and may change*).
     Instead, derived classes can manipulate state directly.
   - Do not take this to extreme. Code should still be modular and reusable if it does not harm other goals.
 
@@ -127,16 +127,18 @@ This would make it easier for others to compare to the new work.
 * Very limited dependencies.
   - Make it easy to install and use.
   - Main dependencies are numpy, scipy, and scikit-learn. 
+
+[^2]: Joking aside, scikit-learn has been an inspiration for `annindex`. 
     
 ### Non-goals
 
-Annindex is not meant for building large production systems, nor is it meant to be "scikit-anns" (perhaps in the future...):
+`annindex` is not meant for building large production systems, nor is it meant to be "scikit-anns" (perhaps in the future...):
 * Not production quality.
 * Focus is on simple code, rather than making it very fast or generic.
 * Moderate input checks to avoid errors, but assume users generally know what they are doing.
 * Not meant to build large systems.
 * Not meant to support a huge eco-system.
-* Not feature-compleat, and is not trying to be.
+* Not feature-complete, and is not trying to be.
 
 ## Roadmap
 
