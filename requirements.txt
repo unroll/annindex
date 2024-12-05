@@ -1,0 +1,5 @@
+numpy >= 2.1
+scikit-learn >= 1.5
+scipy >= 1.14
+tqdm >= 4
+
