@@ -8,7 +8,7 @@ Annindex contains easy-to-use, easy to understand, reasonably-performing impleme
 Modern vector databases (VDBMS) rely on such indexes to provide fast and accurate nearest neighbour queries.
 
 Indexes in annindex are implemented in Python directly from pseudo-code in the relevant papers, aiming at simplicity rather than performance or comprehensive features.
-Read the [philosophy]([#philosophy)) behind how annindex is meant to help researchers. 
+Read the [philosophy](#philosophy-or-why-do-this)) behind how annindex is meant to help researchers. 
 If you are going for top performance or production-grade code, try [something else](https://github.com/facebookresearch/faiss).
 
 ## Getting Started
@@ -88,12 +88,12 @@ This would make it easier for others to compare to the new work.
   - Avoid very complex data structures.
   - Ideally, implementation should be simple enough to rip out and re-use.
 
-* ... but provide reasonable performance when possible.
-  - Don't be silly.
+* ... but provide reasonable performance when possible.  
   - Use numpy, sklearn, scipy cleverly for performance.
   - OK to replace naive pseudocode with more optimized loops, as long as this is well-documented in the code. 
-    For example, argmin_i f(x_i) inside a loop could sometimes be replaced by precalculating f(x_i) for all i's and sorting, thus avoiding an O(n^2) loop.
+    For example, argmin_i f(x_i) inside a pseudocode loop could sometimes be replaced by precalculating f(x_i) for all i's and sorting, thus avoiding an O(n^2) loop.
   - Avoid reading entire file into memory: loads from iterators one vector at a time.
+  - Avoid silly wastage: use sum and not Python loops, avoid calling a small function repeatedly
  
 * Designed to run in memory, for simplicity *and* performance.
   - Note this does not preclude having disk-based indexes, whether actually stored on disk or in memory.
@@ -109,13 +109,14 @@ This would make it easier for others to compare to the new work.
   - Shallow and visible class hierarchy that does not take up huge headspace.
     Avoid surprises. 
 
-* Simple to use and extend, even at cost of encapsulation.
+* Simple to use and extend, even at cost of encapsulation and reusability.
   - Straightforward public APIs.
   - Do not limit extenders.
     For example, implementing a new graph-based index does not *require* deriving from from some "GraphIndexBase", a "LoaderMixin" and .
   - Provide some simple base classes that can help, but it is not required.
     Moreover, base classes currently only offer a very limited private interface for derived classes (this is not ideal).
     Instead, derived classes can manipulate state directly.
+  - Do not take this to extreme. Code should still be modular and reusable if it does not harm other goals.
 
 * Minimize deviations from publications. Any such deviations must be contained and documented.
   - For large deviations, include the original approach or algorithm as an option. 
@@ -131,11 +132,11 @@ This would make it easier for others to compare to the new work.
 
 Annindex is not meant for building large production systems, nor is it meant to be "scikit-anns" (perhaps in the future...):
 * Not production quality.
-* Focus is on simple code, not the fastest or most generic code.
-* Moderate input checks. User knows what they are doing.
+* Focus is on simple code, rather than making it very fast or generic.
+* Moderate input checks to avoid errors, but assume users generally know what they are doing.
 * Not meant to build large systems.
 * Not meant to support a huge eco-system.
-* Not feature complement, and never will be.
+* Not feature-compleat, and is not trying to be.
 
 ## Roadmap
 
@@ -161,9 +162,11 @@ Annindex is not meant for building large production systems, nor is it meant to 
 
 ## Contributing
 
-Bug reports and suggestions are very useful! Go ahead and open an [issue](https://github.com/unroll/annindex/issues).
+Bug reports and suggestions are useful -- go ahead and open an [issue](https://github.com/unroll/annindex/issues).
+No template yet so try to be nice about it.
 
-Code contributions that help progress the roadmap or implementations of new SotA indexes are also greatly appreciated.
+Code contributions that help progress the roadmap or implementations of new SotA indexes are greatly appreciated!
+Please read our [philosophy](#philosophy-or-why-do-this) about what the code should look like, and why.
 Go ahead and fork the repo, create and commit to a feature branch, and create a pull request once ready.
 1. Fork the Project
 2. Create your Feature Branch (`git checkout -b feat/xx/your-feature-name`)
