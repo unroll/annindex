@@ -8,31 +8,64 @@ Approximate nearest neighbour search indices implemented in Python, targeted at 
 Modern vector databases (VDBMS) rely on such indexes to provide fast and accurate nearest neighbour queries.
 
 Indexes in annindex are implemented in Python directly from pseudo-code in the relevant papers, aiming at simplicity rather than performance or comprehensive features.
-Read the [philosophy](#philosophy-or-why-do-this) behind how `annindex` is meant to help researchers. 
+Read the [philosophy](#philosophy-or-why-do-this) behind `annindex` to see why and how this can help researchers, learners, and practitioners. 
 If you are going for top performance or production-grade code, try [something else](https://github.com/facebookresearch/faiss).
 
 ## Getting Started
 
-The aim to publish `annindex` on PyPI. once that is achieved, it should be possible to `pip install annindex`.
+The aim is to publish `annindex` on PyPI. once that is achieved, it should be possible to `pip install annindex`.
 
 Unfortunately we are not quite there yet (see [roadmap](#roadmap)), so currently you should check out or otherwise download the code, install the prerequisites yourself, and set up `PYTHONPATH` if needed.
 
 ## Usage
 
-**TODO: docs** (see [roadmap](#roadmap))
+```py
+import numpy as np                                  # numpy is useful
+from tqdm.auto import tqdm                          # display a progress bar
+from annindex.vamana import VamanaIndex, QueryStats # import index
+from annindex.data import iterate_fvecs             # loader for SIFT data
 
-Generally:
-1. Import the index class you want.
-2. Instantiate it with the parameters.
-3. Load the input data (or create an iterator for one vector at a time) and pass an iterator to `index.load()`.
-   `annindex.data` contains tools for common files.
-   This loads the vectors in the file to memory, but does not initialize the index.
-3. Call `index.build`, which will build the index and takes time.
-   Most indexes accept a [tqdm](https://github.com/tqdm/tqdm)-style function to display progress.
-4. You can now call `index.query(x, k)` for nearest neighbour queries.
-   Some indexes support collection of statistics.
+# Iterate over vectors of SIFT data.
+# The iterator does *not* load the entire file -- works one vector at a time.
+n_vectors, d, dtype, data_itr = iterate_fvecs('path/to/sift/sift_learn.fvecs')
 
-For now, see class, method, and function docstrings
+# Initialize the ANNS index with whatever parameters we want.
+# Most indexes accept a tqdm-style function to display progress.
+# Many indexes accept an optional tqdm-like function to create a progress bar.
+indx = VamanaIndex(d=d, R=32, L=75, progress_wrapper=tqdm)
+
+# Load the data to the index, but do not build the index yet.
+# This only reads and loads the first 10000 vectors, even if the file is large.
+# In this case, we tell the index to use internally the same precision (dtype)
+# as the .fvecs file (FP32), but we could specify different precision.
+n = 10000
+indx.load(data_itr, n, dtype=dtype)
+
+# Build the index, which can take time.
+# If progress_wrapper was passed, it will be used here.
+indx.build()
+
+# We can now execute nearest neighbour queries, or get vector by their id.
+# This returns the top 5 nearest neighbours to [1,1,1,1,...,1]
+q = np.ones(d, dtype=dtype)
+k = 5
+for i in indx.query(q, k):
+   print(f'neighbour {i} = {indx.get(i)}')
+
+# Some indexes have additional per-query parameters that control  performance.
+for i in indx.query(q, k, L=200):
+   print(f'neighbour {i} = {indx.get(i)}')
+
+# Some indexes support collecting statistics on queries.
+stats = QueryStats
+result = indx.query(q, k, out_stats=stats)
+print(f'found {k} neighbours using {stats.nhops} graph hops')
+
+```
+## Documentation
+
+In the [roadmap](#roadmap).
+For now, see class, method, and function docstrings.
 
 ## Philosophy (or, Why Do This?)
 
@@ -145,6 +178,7 @@ This would make it easier for others to compare to the new work.
 - [ ] Add important indexes (without going overboard)
     - [ ] IVF
     - [ ] HNSW
+    - [ ] [Indexes on compressed data](https://github.com/unroll/annindex/issues/3)
     - [ ] Composite indexes
     - [ ] Residual compression
     - [ ] IVFOADC+G+P ?   
@@ -157,7 +191,7 @@ This would make it easier for others to compare to the new work.
     - [ ] Filtered (predicated) queries
     - [ ] Hybrid (multi-vector) queries
 - [ ] Quality of life
-    - [ ] Testing
+    - [ ] Testing    
     - [ ] Package documentation
     - [ ] Better APIs (access parameters, internal APIs)
 - [ ] PyPI release
