@@ -51,7 +51,7 @@ class BaseStore(ABC):
         out : NDArray
             Vector of length d.
         """
-        idx = self.key_index[idx_or_key] if self.keys is None else idx_or_key
+        idx = self.key_index[idx_or_key] if self.keys is not None else idx_or_key
         return self.vectors[idx]
     
     def iterate(self) -> Iterator[tuple[Any, NDArray]]:
@@ -144,25 +144,6 @@ class BaseIndex(BaseStore):
         self.dist_func = get_distance_func(dist_name, internal_use=True)
         self.progress_wrapper = progress_wrapper if progress_wrapper is not None else lambda S, d: S 
 
-
-    
-    def get(self, idx_or_key: int | Any) -> NDArray:
-        """
-        Return vector by index (or key if keys where passed)
-
-        Parameters
-        ----------
-        idx_or_key : int or Any
-            Index or key of vector to retrieve.
-
-        Returns
-        -------
-        out : NDArray
-            Vector of length d.
-        """
-        idx = self.key_index[idx_or_key] if self.keys is None else idx_or_key
-        return self.vectors[idx]
-    
     @abstractmethod
     def query(self, x: ArrayLike, k:int = 1, *args, **kwargs) -> list[Any] | list[int]:
         """
