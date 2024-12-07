@@ -324,3 +324,73 @@ class VamanaIndex(BaseIndex):
         return out_edges
 
 
+class InstructiveVamana(VamanaIndex):
+    """
+    This is an instructive version of Vamana, with an implementation that more
+    closely the paper. It builds the same graph as the original but is 
+    significantly slower, and should not be normally used.
+    
+    The only difference is _robust_prune which now uses an argmin search inside
+    the loop. This can be helpful for understanding Vamana and the above
+    VamanaIndex implementation. It can also serve as an easy (but slow) base to
+    test tweaks of the robust pruning procedure.
+    
+    See `VamanaIndex` for documentation.
+    """    
+
+    def _robust_prune(self, p: int, visited: set[int], alpha: Optional[float] = None, R: Optional[int] = None) -> set[int]:
+        """
+        Use the visited path from the entry point during greedy search to prune out edges of a point. 
+        Closely follows Algorithm 2 in the [paper](https://papers.nips.cc/paper/9527-rand-nsg-fast-accurate-billion-point-nearest-neighbor-search-on-a-single-node.pdf).
+       
+        Note `visited` is modified during the run.
+
+        Parameters
+        ----------
+        p : int
+            Index of point whose neighbours we are pruning.
+        visited : set[int]
+            Candidates for edges of p (the set of points visited during `_greedy_search`). Modified during operation.
+        alpha : float, optional
+            Distance growth factor. Omit to use `self.alpha`.
+        R : int, optional;
+            Maximum out-degree. Omit to use `self.R`.
+
+        Returns
+        -------
+        out : set[int]
+            New set of neighbours for p of length `R` or less.
+        """
+        assert p >= 0 and p < self.npts
+        assert len(visited) > 0
+        if alpha is None:
+            alpha = self.alpha
+        if R is None:
+            R = self.R            
+
+        # Add current neighbours of p to list of candidates
+        visited.update(self.edges[p])
+        # Avoid self loops if any
+        visited.discard(p)
+
+        # Precompute distances from p
+        distance = self.dist_func.distance
+        dist_from_p = { v: distance(self.vectors[p], self.vectors[v]) for v in visited }
+
+        # Start without neighbours
+        out_edges = set()
+        # Iterate until no more candidates
+        while visited:
+            # Find neareast candidate 
+            d, p_star = min( (dist_from_p[v], v) for v in visited )
+            # Add it to list of neigbhours
+            out_edges.add(p_star)
+            # If we have R edges, we're done
+            if len(out_edges) == R:
+                break
+            # Remove from candidate list points that are too close            
+            visited = set( v for v in visited if dist_from_p[v] < alpha*distance(self.vectors[p_star], self.vectors[v]) )
+        
+        # Return the out neighbours of p        
+        return out_edges
+
