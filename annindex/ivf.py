@@ -6,41 +6,10 @@ from numpy.typing import ArrayLike, NDArray
 from sklearn.cluster import KMeans
 
 from .distance import medoid
-from .base import BaseIndex, ProgressWrapper
+from .base import BaseIndex
+from .utils import arg_ksmallest
 
    
-def arg_ksmallest(k: int, x: NDArray, skip_sorting: bool = False) -> NDArray:
-    """
-    Return the indices of the  `k` smallest items in `x`.
-
-    Parameters
-    ----------
-    k : int
-        How many items to get.
-    x : NDArray
-        Array of values.
-    sorted : bool, optional
-        If True, skip sorting returned indexes by x[i]. By default False.
-
-    Returns
-    -------
-    out : NDArray
-        Array of `k` or fewer (if ``len(x) < k``) indexes of the smallest
-        items in `x`. Indexes are in increasing order of x[i] unless
-        `skip_sorting` was set to True.
-    """    
-    if k < 1:
-        raise ValueError('k must be at least 1 for ksmallest')
-    if k >= len(x):
-        return np.arange(len(x))
-    # np.partition + sort is faster than heapq.nsmallest
-    # https://perfpy.com/891
-    # Get k best indexes
-    best = np.argpartition(x, k)[:k]
-    # Reorder those indexes so the resulting items are sorted
-    if not skip_sorting:
-        best = best[x[best].argsort()]
-    return best
 
 class IVF(BaseIndex):
     """
