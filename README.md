@@ -176,7 +176,7 @@ This would make it easier for others to compare to the new work.
 ## Roadmap
 
 - [ ] Add important indexes (without going overboard)
-    - [ ] IVF
+    - [x] IVF
     - [ ] HNSW
     - [ ] [Indexes on compressed data](https://github.com/unroll/annindex/issues/3)
     - [ ] Composite indexes
