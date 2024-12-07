@@ -216,7 +216,7 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 ## Contact
 
-Moshe Gabel: mgabel@cs.toronto.edu
+Moshe Gabel: mgabel (-at-) cs.toronto.edu
 
 Project Link: [https://github.com/unroll/annindex](https://github.com/unroll/annindex)
 
