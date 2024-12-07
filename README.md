@@ -20,10 +20,10 @@ Unfortunately we are not quite there yet (see [roadmap](#roadmap)), so currently
 ## Usage
 
 ```py
-import numpy as np                                  # numpy is useful
-from tqdm.auto import tqdm                          # display a progress bar
-from annindex.vamana import VamanaIndex, QueryStats # import index
-from annindex.data import iterate_fvecs             # loader for SIFT data
+import numpy as np                           # numpy is useful
+from tqdm.auto import tqdm                   # display a progress bar
+from annindex import Vamana                  # import index
+from annindex.data import iterate_fvecs      # loader for SIFT data
 
 # Iterate over vectors of SIFT data.
 # The iterator does *not* load the entire file -- works one vector at a time.
@@ -32,7 +32,7 @@ n_vectors, d, dtype, data_itr = iterate_fvecs('path/to/sift/sift_learn.fvecs')
 # Initialize the ANNS index with whatever parameters we want.
 # Most indexes accept a tqdm-style function to display progress.
 # Many indexes accept an optional tqdm-like function to create a progress bar.
-indx = VamanaIndex(d=d, R=32, L=75, progress_wrapper=tqdm)
+indx = Vamana(d=d, R=32, L=75, progress_wrapper=tqdm)
 
 # Load the data to the index, but do not build the index yet.
 # This only reads and loads the first 10000 vectors, even if the file is large.
@@ -57,7 +57,7 @@ for i in indx.query(q, k, L=200):
    print(f'neighbour {i} = {indx.get(i)}')
 
 # Some indexes support collecting statistics on queries.
-stats = QueryStats
+stats = Vamana.QueryStats
 result = indx.query(q, k, out_stats=stats)
 print(f'found {k} neighbours using {stats.nhops} graph hops')
 

@@ -9,7 +9,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import squareform
 
-from annindex.pq import ProductQuantization
+from annindex import ProductQuantization
 
 def get_cluster_match(found_clusters, true_clusters):
     cluster_dist = euclidean_distances(found_clusters, true_clusters)

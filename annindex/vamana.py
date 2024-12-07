@@ -1,4 +1,3 @@
-from heapq import heappush, heappop, nsmallest
 from typing import Sequence, Optional, Any
 from dataclasses import dataclass
 import numpy as np
@@ -56,14 +55,10 @@ def randomly_wired_edges(npts: int, nedges: int | Sequence[int], progress_wrappe
     
     return edges
 
-@dataclass
-class QueryStats():
-    """Statistics for Vamana queries."""    
-    nhops: int = 0
-
-class VamanaIndex(BaseIndex):
+class Vamana(BaseIndex):
     """
-    Vamana nearest neighbour search index, as described in Section 2 of the [DiskANN paper](https://papers.nips.cc/paper/9527-rand-nsg-fast-accurate-billion-point-nearest-neighbor-search-on-a-single-node.pdf).
+    Vamana nearest neighbour search index, as described in Section 2 of the
+    [DiskANN paper](https://papers.nips.cc/paper/9527-rand-nsg-fast-accurate-billion-point-nearest-neighbor-search-on-a-single-node.pdf).
 
     Parameters
     ----------
@@ -79,7 +74,13 @@ class VamanaIndex(BaseIndex):
         Growth factor for steps towards goal. By default, 1.2.
     progress_wrapper : Sequence, str -> Sequence, optional
             None, or a function that accepets a sequence S and description str, and yields the same sequence S. Useful for progress bar (try `tqdm`).
-    """            
+    """   
+    
+    @dataclass
+    class QueryStats():
+        """Statistics for Vamana queries."""
+        nhops: int = 0
+
     def __init__(self, d: int, dist_name: str = 'euclidean', R: int = 64, L: int = 100, alpha: float = 1.2,
                  progress_wrapper: Optional[ProgressWrapper] = None) -> None:
         
@@ -95,7 +96,9 @@ class VamanaIndex(BaseIndex):
 
         super().__init__(d, dist_name, progress_wrapper=progress_wrapper)
     
-    def query(self, x: ArrayLike, k:int = 1, L: Optional[int] = None, out_stats: Optional[QueryStats] = None, *args, **kwargs) -> list[Any] | list[int]:
+    def query(self, x: ArrayLike, k:int = 1, L: Optional[int] = None, 
+              out_stats: Optional[QueryStats] = None, 
+              *args, **kwargs) -> list[Any] | list[int]:
         """
         Return k approximate nearest neighbours to x.
 
@@ -123,7 +126,7 @@ class VamanaIndex(BaseIndex):
         if L < k:
             raise ValueError(f'L ({L}) must be at least k ({k})')
         if out_stats is None:
-            out_stats = QueryStats()
+            out_stats = self.QueryStats()
         
         x = np.asarray(x)
         knns, _ = self._greedy_search(x, k, L=L, out_stats=out_stats)
@@ -201,7 +204,7 @@ class VamanaIndex(BaseIndex):
         else:
             assert start >= 0 and start < self.npts
         if out_stats is None:
-            out_stats = QueryStats()
+            out_stats = self.QueryStats()
 
         # Distance to query
         x = np.asarray(x)
@@ -324,7 +327,7 @@ class VamanaIndex(BaseIndex):
         return out_edges
 
 
-class InstructiveVamana(VamanaIndex):
+class InstructiveVamana(Vamana):
     """
     This is an instructive version of Vamana, with an implementation that more
     closely the paper. It builds the same graph as the original but is 
