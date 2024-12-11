@@ -153,7 +153,7 @@ class Vamana(BaseIndex):
         # Initialize to randomly chosen edges
         self.edges = randomly_wired_edges(self.npts, self.R, self.progress_wrapper)
         # Set entry point to medoid.
-        self.entry_point = medoid(self.vectors, self.external_dist_name)
+        self.entry_point = medoid(self.vectors, self.dist_func)
         # Update paths
         for p in self.progress_wrapper(np.random.permutation(self.npts), 'indexing'):
             # Find path to p

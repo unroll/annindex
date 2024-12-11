@@ -181,7 +181,7 @@ def get_distance_func(dist_name: str, internal_use: bool = False) -> DistanceFun
         raise ValueError(f'Unkown distance function {dist_name}. Supported: {list(distance_funcs.keys())}')
     return f
 
-def medoid(vectors: ArrayLike, dist_func: str = 'euclidean') -> int:
+def medoid(vectors: ArrayLike, dist_func: DistanceFunction) -> int:
     """
     Return medoid of the dataset - the point that minimizes the sum of distances to all other points.    
     
@@ -193,16 +193,15 @@ def medoid(vectors: ArrayLike, dist_func: str = 'euclidean') -> int:
     ----------
     vectors : ArrayLike
         An n by d array of n vectors in d dimensions.
-    dist_func : str, optional
-        Distance metric: 'euclidean', 'cosine', or 'inner'. By default 'euclidean'. 
+    dist_func : DistanceFunction
+        Distance metric to use. 
 
     Returns
     -------
     int
         index of medoid.
     """ 
-    dist = get_distance_func(dist_func)
-    D = dist.allpairs(vectors)    
+    D = dist_func.allpairs(vectors)    
     # Return vector with minimum distance
     return D.sum(axis=1).argmin()
         

@@ -5,7 +5,6 @@ from heapq import merge
 from numpy.typing import ArrayLike, NDArray
 from sklearn.cluster import KMeans
 
-from .distance import medoid
 from .base import BaseIndex
 from .utils import arg_ksmallest
 
