@@ -70,7 +70,7 @@ For now, see class, method, and function docstrings.
 ## Philosophy (or, Why Do This?)
 
 Why do we need `annindex`? 
-After all, there are several high quality implementations of ANNS indexes that provide excellent performance, low memory, maximum flexibility, and comprehensive features: [FAISS](https://github.com/facebookresearch/faiss), [hnswlib](https://github.com/nmslib/hnswlib), and [DiskANN](https://github.com/microsoft/DiskANN)), to mention some.
+After all, there are several high quality implementations of ANNS indexes that provide excellent performance, low memory, maximum flexibility, and comprehensive features: [FAISS](https://github.com/facebookresearch/faiss), [hnswlib](https://github.com/nmslib/hnswlib), and [DiskANN](https://github.com/microsoft/DiskANN)), to mention a few.
 
 The downside of such quality is that their codebase can be complex: thousands of lines of multi-threaded C++ code interfacing with dependencies to utilize GPUs, multi-core CPUs, disks, and so on.
 For example, while the elegant Vamana algorithm at the core of DiskANN can be described in 20 lines of pseudo-code, the DiskANN implementation (which includes much more) is 20K lines of C++.
@@ -126,7 +126,7 @@ This would make it easier for others to compare to the new work.
   - OK to replace naive pseudocode with more optimized loops, as long as this is well-documented in the code. 
     For example, argmin_i f(x_i) inside a pseudocode loop could sometimes be replaced by precalculating f(x_i) for all i's and sorting, thus avoiding an O(n^2) loop.
   - Avoid reading entire file into memory: loads from iterators one vector at a time.
-  - Avoid silly wastage: use sum and not Python loops, avoid calling a small function repeatedly
+  - Avoid silly wastage: use sum and not Python loops, avoid calling a small function repeatedly, and so on.
  
 * Designed to run in memory, for simplicity *and* performance.
   - Note this does not preclude having disk-based indexes, whether actually stored on disk or in memory.
@@ -177,7 +177,7 @@ This would make it easier for others to compare to the new work.
 
 - [ ] Add important indexes (without going overboard)
     - [x] IVF
-    - [ ] HNSW
+    - [x] HNSW
     - [ ] [Indexes on compressed data](https://github.com/unroll/annindex/issues/3)
     - [ ] Composite indexes
     - [ ] Residual compression
